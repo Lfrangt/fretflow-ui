@@ -230,8 +230,7 @@ button {
 
 .soft-button,
 .segmented,
-.input-dock,
-.stage-caption {
+.input-dock {
   border: 1px solid rgba(255, 255, 255, 0.76);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(245, 241, 232, 0.7));
   box-shadow:
@@ -551,33 +550,6 @@ button {
 .note-marker.extension {
   background: var(--violet-note);
   color: white;
-}
-
-.stage-caption {
-  position: absolute;
-  z-index: 7;
-  left: 50%;
-  bottom: 18px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  transform: translateX(-50%);
-  color: #3c372f;
-}
-
-.stage-caption span {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.stage-caption strong {
-  font-size: 17px;
-}
-
-.workspace-shell:not(.has-started) .stage-caption {
-  display: none;
 }
 
 .stage-progression {
@@ -1548,11 +1520,6 @@ textarea:focus {
   .stage-progression {
     display: none;
   }
-}
-
-.is-focused .stage-caption {
-  top: calc(var(--detail-top) + 174px);
-  bottom: auto;
 }
 
 @media (min-width: 1500px) {

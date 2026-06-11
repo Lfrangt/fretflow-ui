@@ -38,6 +38,8 @@ function chordQuality(suffix: string): ChordQuality {
   // The minor "m" must not be the one inside "maj" (dim is already handled).
   if (suffix.replace(/maj/g, "").includes("m")) return "minor";
   if (suffix.includes("maj")) return "major";
+  // sus/add/6 color a major-family chord; they are not dominant sevenths.
+  if (/sus|add|^6/.test(suffix)) return "major";
   if (/[0-9]|alt/.test(suffix)) return "dominant";
   return "major";
 }
