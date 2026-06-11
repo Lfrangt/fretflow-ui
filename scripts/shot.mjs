@@ -1,13 +1,9 @@
-// Dev-only visual check: walks the three acts and screenshots each.
+// Dev-only visual check: landing → practice stage → settings dock.
 // Usage: node scripts/shot.mjs [baseUrl]
 import { chromium } from "@playwright/test";
 
-const base = process.argv[2] ?? "http://localhost:3777";
-const browser = await chromium.launch({
-  channel: "chrome",
-  headless: true,
-  args: ["--headless=new", "--use-angle=metal"]
-});
+const base = process.argv[2] ?? "http://localhost:3000";
+const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
 page.on("console", (msg) => {
@@ -15,25 +11,19 @@ page.on("console", (msg) => {
 });
 
 await page.goto(base, { waitUntil: "load" });
-await page.waitForTimeout(2600);
-await page.screenshot({ path: "/tmp/ff-intro.png" });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: "/tmp/ff-landing.png" });
 
-await page.getByRole("button", { name: "Design your guitar" }).click();
-await page.waitForTimeout(2600);
-await page.screenshot({ path: "/tmp/ff-customize.png" });
-
-// Try a finish + preset before entering the stage.
-await page.getByRole("radio", { name: "Terracotta" }).click();
-await page.getByRole("radio", { name: /Neo-Soul Glide/ }).click();
-await page.waitForTimeout(1200);
-await page.screenshot({ path: "/tmp/ff-customize-2.png" });
-
-await page.getByRole("button", { name: "Build the fretboard" }).click();
-await page.waitForTimeout(3200);
+await page.getByRole("button", { name: "Start practice" }).click();
+await page.waitForTimeout(800);
+// Pause so the active chord stays on Am7 for stable assertions.
+await page.getByRole("button", { name: "Pause" }).click();
+await page.waitForTimeout(800);
 await page.screenshot({ path: "/tmp/ff-stage.png" });
 
-await page.waitForTimeout(2500);
-await page.screenshot({ path: "/tmp/ff-stage-2.png" });
+await page.getByRole("button", { name: "Settings" }).click();
+await page.waitForTimeout(1000);
+await page.screenshot({ path: "/tmp/ff-settings.png" });
 
 await browser.close();
 console.log("done");
