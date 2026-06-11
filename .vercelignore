@@ -1,0 +1,10 @@
+.next
+node_modules
+
+# Local prototype files from the pre-Next version.
+/index.html
+/app.js
+/styles.css
+
+# Local QA screenshots and browser captures.
+/*.png

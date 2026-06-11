@@ -1,0 +1,42 @@
+{
+  "name": "fretflow-ui",
+  "version": "0.1.0",
+  "description": "Animated guitar fretboard practice UI for advanced chord progressions.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lfrangt/fretflow-ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Lfrangt/fretflow-ui/issues"
+  },
+  "homepage": "https://fretflow-ui.vercel.app",
+  "keywords": [
+    "guitar",
+    "fretboard",
+    "music-education",
+    "chords",
+    "nextjs"
+  ],
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@liquid-dom/core": "^0.1.0",
+    "@liquid-dom/react": "^0.1.0",
+    "motion": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest"
+  }
+}

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 620" role="img" aria-label="Cream electric guitar">
+  <defs>
+    <linearGradient id="creamBody" x1="0" x2="1">
+      <stop offset="0" stop-color="#fbf4dc"/>
+      <stop offset="0.58" stop-color="#e9d19b"/>
+      <stop offset="1" stop-color="#cfaa62"/>
+    </linearGradient>
+    <linearGradient id="neckWood" x1="0" x2="1">
+      <stop offset="0" stop-color="#7a5434"/>
+      <stop offset="1" stop-color="#302019"/>
+    </linearGradient>
+    <linearGradient id="headWood" x1="0" x2="1">
+      <stop offset="0" stop-color="#ecc17a"/>
+      <stop offset="1" stop-color="#c98c3d"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-25%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="22" stdDeviation="24" flood-color="#3d3327" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path fill="url(#creamBody)" d="M112 310c0-122 86-218 202-218 54 0 103 20 139 54 41-19 94-28 145-12 84 26 124 101 103 166 70 21 98 82 73 139-25 56-94 84-164 64-53 43-137 48-201 9-44 25-99 30-150 12C169 492 112 407 112 310Z"/>
+    <path fill="#fbf8ec" d="M308 260c58-41 143-46 214-14 51 23 99 22 139 6 41-16 77 22 62 64-10 28-42 46-74 40-43-9-88-4-130 17-75 37-166 25-214-34-20-24-18-62 3-79Z"/>
+    <rect x="514" y="252" width="858" height="108" rx="22" fill="url(#neckWood)"/>
+    <rect x="516" y="244" width="862" height="8" rx="4" fill="#c7b899"/>
+    <rect x="516" y="360" width="862" height="8" rx="4" fill="#d9cfb9"/>
+    <rect x="505" y="236" width="22" height="140" rx="7" fill="#d8cab0"/>
+    <path fill="url(#headWood)" d="M1370 236h248c54 0 94 42 90 93-3 43-38 76-82 76h-256Z"/>
+    <path fill="#f7f0de" d="M286 214h220v194H286z" opacity=".76"/>
+    <rect x="228" y="230" width="92" height="92" rx="16" fill="#d2c8b9"/>
+    <rect x="438" y="226" width="48" height="164" rx="20" fill="#f1dba8"/>
+    <rect x="566" y="232" width="42" height="152" rx="19" fill="#f1dba8"/>
+    <g stroke="#efe8d7" stroke-width="3" opacity=".72">
+      <line x1="196" y1="270" x2="1620" y2="270"/>
+      <line x1="196" y1="288" x2="1620" y2="288"/>
+      <line x1="196" y1="306" x2="1620" y2="306"/>
+      <line x1="196" y1="324" x2="1620" y2="324"/>
+      <line x1="196" y1="342" x2="1620" y2="342"/>
+      <line x1="196" y1="360" x2="1620" y2="360"/>
+    </g>
+    <g fill="#ead5a2" opacity=".92">
+      <circle cx="754" cy="306" r="8"/>
+      <circle cx="954" cy="306" r="8"/>
+      <circle cx="1154" cy="306" r="8"/>
+      <circle cx="1354" cy="306" r="8"/>
+    </g>
+    <g fill="#ded6c9">
+      <circle cx="1638" cy="250" r="15"/>
+      <circle cx="1666" cy="278" r="15"/>
+      <circle cx="1692" cy="307" r="15"/>
+      <circle cx="1666" cy="336" r="15"/>
+      <circle cx="1638" cy="364" r="15"/>
+    </g>
+  </g>
+</svg>
