@@ -54,3 +54,4 @@ pnpm-debug.log*
 /public/assets/skin-*.webp
 /public/assets/skin-*.avif
 /public/assets/fender-stratocaster.svg
+.gstack/

@@ -25,18 +25,20 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@liquid-dom/core": "^0.1.0",
-    "@liquid-dom/react": "^0.1.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "motion": "latest",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/three": "^0.184.1",
     "typescript": "latest"
   }
 }

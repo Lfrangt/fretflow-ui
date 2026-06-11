@@ -1,26 +1,32 @@
 # FretFlow
 
-FretFlow is an experimental guitar learning interface for advanced chord movement. It turns a progression into animated fretboard positions, keeps loop controls close to the instrument, and includes early import flows for chord text, chart OCR, and server-side MP3 chord recognition.
+FretFlow teaches advanced chord movement on the instrument itself. Design a guitar, pick a progression, and watch the voicings glide across a real-time 3D fretboard — every marker labeled by interval, every transition animated like choreography.
 
 Live demo: https://fretflow-ui.vercel.app
 
+## How it flows
+
+1. **Intro** — a studio-lit 3D guitar floating in white space.
+2. **Customize** — choose a finish (Moonstone, Graphite, Pacific, Terracotta, Sage, Sunburst) and a progression: built-in jazz / neo-soul / blues presets, or type your own.
+3. **Stage** — one continuous camera move dives into the fretboard. Chords play in time, markers glide between voicings, and a glass transport dock controls tempo, stepping, and sound.
+
+The whole app is a single uninterrupted camera shot — no page transitions, just three poses of the same scene.
+
 ## Features
 
-- Animated high-position chord voicings on a focused fretboard
-- Loop modes for full progression, A/B pair practice, and hold
-- Interval-first labels such as `R`, `3`, `b7`, `9`, and `13`
-- Built-in jazz, R&B, blues, and neo-soul practice progressions
-- Custom marker palettes, guitar skins, and Web Audio tone presets
-- Optional Liquid DOM glass layer with automatic WebGPU fallback
+- Procedurally modeled electric guitar in Three.js: real fret spacing (12-TET), gauged strings, inlays, studio lightformer reflections
+- 26 advanced voicings (maj9, 13, alt, dim7, m11…) with interval-first markers: `R`, `3`, `b7`, `9`, `13`
+- Markers animate between chords with critically-damped springs — you see the hand shape *move*
+- Web Audio strum engine (no samples, pure synthesis)
+- Keyboard transport: `Space` play/pause, `←` `→` step chords
 - Server route for MP3 chord recognition through Klangio or a self-hosted ChordMini worker
 
 ## Tech Stack
 
-- Next.js App Router
-- React
-- Motion
+- Next.js App Router + React
+- Three.js via @react-three/fiber + drei
+- Motion for DOM transitions
 - Web Audio API
-- Liquid DOM
 
 ## Getting Started
 
@@ -55,18 +61,6 @@ CHORDMINI_API_URL=http://localhost:5001
 ```
 
 API keys are server-only. Do not expose them to the browser.
-
-## Assets
-
-The repository keeps one main guitar reference image for the prototype experience. Additional skins use original SVG placeholder assets. If you add more product photography or branded instrument images, make sure you have the right to redistribute them before committing.
-
-## Scripts
-
-```bash
-npm run dev
-npm run build
-npm run start
-```
 
 ## License
 
