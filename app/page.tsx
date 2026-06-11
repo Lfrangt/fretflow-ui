@@ -1,5 +1,5 @@
-import { FretflowApp } from "@/components/fretflow-app";
+import { GuitarWorkspace } from "@/components/guitar-workspace";
 
 export default function Home() {
-  return <FretflowApp />;
+  return <GuitarWorkspace />;
 }
