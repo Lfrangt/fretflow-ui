@@ -807,7 +807,7 @@ export function GuitarWorkspace() {
               : { scale: 0.84, x: "10vw", y: 56, rotate: 0 },
             focused: { scale: 1.1, x: "17vw", y: 58, rotate: 0 }
           }}
-          transition={{ type: "spring", stiffness: 72, damping: 19, mass: 0.9 }}
+          transition={{ duration: 0.48, ease: [0.32, 0.72, 0, 1] }}
         >
           <img
             className="guitar-photo"
@@ -923,295 +923,300 @@ export function GuitarWorkspace() {
 
       <AnimatePresence>
       {settingsOpen ? (
+      <motion.div
+        // Flow slot: owns the dock's grid row. Animating its height keeps the
+        // stage row growing/shrinking over 480ms instead of snapping when the
+        // dock unmounts, so the fretboard glides with the same curve it uses
+        // for its own variants (P6 choreography).
+        className="dock-flow-slot"
+        initial={hasStarted ? { height: 0 } : false}
+        animate={{ height: "auto" }}
+        exit={{ height: 0 }}
+        transition={{ duration: 0.48, ease: [0.32, 0.72, 0, 1] }}
+      >
       <motion.aside
         className={`input-dock ${hasStarted ? "settings-dock" : ""}`}
-        layout
-        initial={hasStarted ? { opacity: 0, y: 24 } : false}
+        initial={hasStarted ? { opacity: 0, y: 28 } : false}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 24 }}
-        transition={{ type: "spring", stiffness: 120, damping: 22 }}
+        exit={{
+          // Real downward departure: long y travel, opacity gone in ~160ms
+          // so the gliding fretboard never crosses a ghost of the dock.
+          opacity: 0,
+          y: 132,
+          transition: {
+            duration: 0.26,
+            ease: [0.32, 0.72, 0, 1],
+            opacity: { duration: 0.16, ease: "easeOut" }
+          }
+        }}
+        transition={{ duration: 0.38, ease: [0.32, 0.72, 0, 1] }}
       >
-        <div className="dock-heading">
-          <div>
-            <p>Import source</p>
-            <h2>Build a playable chord chart.</h2>
+        <section className="dock-group" aria-label="Progression source">
+          <div className="dock-group-head">
+            <span className="dock-group-label">Progression</span>
+            <div className="segmented">
+              <button className={inputMode === "text" ? "active" : ""} onClick={() => setInputMode("text")}>
+                Text
+              </button>
+              <button className={inputMode === "chart" ? "active" : ""} onClick={() => setInputMode("chart")}>
+                Sheet
+              </button>
+              <button className={inputMode === "audio" ? "active" : ""} onClick={() => setInputMode("audio")}>
+                MP3 Pro
+              </button>
+            </div>
           </div>
-          <div className="segmented">
-            <button className={inputMode === "text" ? "active" : ""} onClick={() => setInputMode("text")}>
-              Text
-            </button>
-            <button className={inputMode === "chart" ? "active" : ""} onClick={() => setInputMode("chart")}>
-              Sheet
-            </button>
-            <button className={inputMode === "audio" ? "active" : ""} onClick={() => setInputMode("audio")}>
-              MP3 Pro
-            </button>
-          </div>
-        </div>
 
-        {inputMode === "text" ? (
-          <textarea
-            aria-label="Chord progression"
-            value={progressionText}
-            onChange={(event) => {
-              setProgressionText(event.target.value);
-              setActivePresetId(null);
-              setAnalysisResult(null);
-              setAnalysisState("idle");
-            }}
-          />
-        ) : null}
-
-        {inputMode === "chart" ? (
-          <div className="source-panel">
-            <label className="upload-well">
-              <input
-                type="file"
-                accept="image/*,.pdf"
+          <div className="dock-columns">
+            {inputMode === "text" ? (
+              <textarea
+                aria-label="Chord progression"
+                value={progressionText}
                 onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  setSelectedSourceFile(file);
-                  setUploadedFileName(file?.name ?? "");
+                  setProgressionText(event.target.value);
+                  setActivePresetId(null);
+                  setAnalysisResult(null);
                   setAnalysisState("idle");
-                  setAnalysisMessage("Ready to scan chart.");
                 }}
               />
-              <span>{uploadedFileName || "Drop a chord chart screenshot or PDF"}</span>
-              <small>OCR cleans the chart, normalizes symbols, then maps each chord to the fretboard.</small>
-            </label>
-            <button className="recognize-action" onClick={() => runRecognition("chart")}>
-              Recognize sheet
-            </button>
-          </div>
-        ) : null}
+            ) : null}
 
-        {inputMode === "audio" ? (
-          <div className="source-panel">
-            <label className="upload-well premium-upload">
-              <input
-                type="file"
-                accept="audio/mpeg,audio/mp3,audio/*"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  setSelectedSourceFile(file);
-                  setUploadedFileName(file?.name ?? "");
-                  setAnalysisState("idle");
-                  setAnalysisMessage(file ? "Ready for FretFlow audio analysis." : "Upload an MP3 first.");
-                }}
-              />
-              <span>{uploadedFileName || "Upload MP3 audio"}</span>
-              <small>Paid advanced: upload MP3, then FretFlow analyzes the song and returns an editable chart.</small>
-            </label>
-            <button className="recognize-action premium-action" onClick={() => runRecognition("audio")}>
-              Analyze MP3
-            </button>
-          </div>
-        ) : null}
+            {inputMode === "chart" ? (
+              <div className="source-panel">
+                <label className="upload-well">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setSelectedSourceFile(file);
+                      setUploadedFileName(file?.name ?? "");
+                      setAnalysisState("idle");
+                      setAnalysisMessage("Ready to scan chart.");
+                    }}
+                  />
+                  <span>{uploadedFileName || "Drop a chord chart screenshot or PDF"}</span>
+                  <small>OCR cleans the chart, normalizes symbols, then maps each chord to the fretboard.</small>
+                </label>
+                <button className="recognize-action" onClick={() => runRecognition("chart")}>
+                  Recognize sheet
+                </button>
+              </div>
+            ) : null}
 
-        {inputMode === "text" ? (
-          <div className="preset-library" aria-label="Progression library">
-            {progressionPresets.map((preset) => (
-              <button key={preset.id} onClick={() => selectProgressionPreset(preset)}>
-                <small>{preset.style}</small>
-                <span>{preset.name}</span>
+            {inputMode === "audio" ? (
+              <div className="source-panel">
+                <label className="upload-well premium-upload">
+                  <input
+                    type="file"
+                    accept="audio/mpeg,audio/mp3,audio/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setSelectedSourceFile(file);
+                      setUploadedFileName(file?.name ?? "");
+                      setAnalysisState("idle");
+                      setAnalysisMessage(file ? "Ready for FretFlow audio analysis." : "Upload an MP3 first.");
+                    }}
+                  />
+                  <span>{uploadedFileName || "Upload MP3 audio"}</span>
+                  <small>Paid advanced: upload MP3, then FretFlow analyzes the song and returns an editable chart.</small>
+                </label>
+                <button className="recognize-action premium-action" onClick={() => runRecognition("audio")}>
+                  Analyze MP3
+                </button>
+              </div>
+            ) : null}
+
+            {inputMode === "text" ? (
+              <div className="preset-library" aria-label="Progression library">
+                {progressionPresets.map((preset) => (
+                  <button key={preset.id} onClick={() => selectProgressionPreset(preset)}>
+                    <small>{preset.style}</small>
+                    <span>{preset.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className={`analysis-panel ${analysisState}`} aria-label="Recognition result">
+                <div>
+                  <p>{inputMode === "audio" ? "MP3 chord engine" : "Sheet recognition"}</p>
+                  <strong>
+                    {analysisState === "analyzing"
+                      ? "Analyzing..."
+                      : analysisState === "error"
+                        ? "Analysis pending"
+                      : analysisResult
+                        ? `${analysisResult.key} · ${analysisResult.bpm} BPM`
+                        : "Ready to scan"}
+                  </strong>
+                </div>
+                <span>{analysisResult ? `${Math.round(analysisResult.confidence * 100)}% confidence draft` : analysisMessage}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="motion-strip" aria-label="Progression playback timeline">
+            {progression.map((chord, index) => (
+              <button
+                className={`${index === activeIndex ? "active" : ""} ${isInsideLoop(index) ? "in-loop" : ""}`}
+                key={`step-${chord}-${index}`}
+                onClick={() => selectChord(index)}
+              >
+                <span>{chord}</span>
+                <small>{degrees[index]}</small>
+                {index === activeIndex ? (
+                  <motion.i
+                    layoutId="active-step"
+                    transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                  />
+                ) : null}
               </button>
             ))}
           </div>
-        ) : (
-          <div className={`analysis-panel ${analysisState}`} aria-label="Recognition result">
-            <div>
-              <p>{inputMode === "audio" ? "MP3 chord engine" : "Sheet recognition"}</p>
+
+          <div className="key-row" aria-label="Key selector">
+            <span>Key</span>
+            <select
+              aria-label="Progression key"
+              value={keyChoice}
+              onChange={(event) => setKeyChoice(event.target.value as "auto" | KeyName)}
+            >
+              <option value="auto">Auto</option>
+              {KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {key}
+                </option>
+              ))}
+            </select>
+            <strong>{keyChoice === "auto" ? `Auto · ${effectiveKey}` : effectiveKey}</strong>
+          </div>
+
+          {analysisResult ? (
+            <div className="song-chart" aria-label="Generated song chord chart">
+              <header>
+                <div>
+                  <p>{analysisResult.source}</p>
+                  <strong>{analysisResult.title}</strong>
+                </div>
+                <button onClick={exportChordChart}>Export chart</button>
+              </header>
+              <div className="chart-sections">
+                {analysisResult.sections.map((section) => (
+                  <section key={section.name}>
+                    <h3>{section.name}</h3>
+                    <div>
+                      {section.bars.map((bar, index) => (
+                        <button key={`${section.name}-${index}`} onClick={() => selectChartChord(bar[0])}>
+                          <small>{index + 1}</small>
+                          <span>{bar.join("  ")}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="dock-group" aria-label="Playback">
+          <span className="dock-group-label">Playback</span>
+          <div className="playback-row">
+            <div className="loop-controls" aria-label="Loop controls">
+              <span>Loop</span>
+              <button className={loopMode === "full" ? "active" : ""} onClick={() => selectLoopMode("full")}>
+                Full
+              </button>
+              <button className={loopMode === "pair" ? "active" : ""} onClick={() => selectLoopMode("pair")}>
+                A/B
+              </button>
+              <button className={loopMode === "hold" ? "active" : ""} onClick={() => selectLoopMode("hold")}>
+                Hold
+              </button>
               <strong>
-                {analysisState === "analyzing"
-                  ? "Analyzing..."
-                  : analysisState === "error"
-                    ? "Analysis pending"
-                  : analysisResult
-                    ? `${analysisResult.key} · ${analysisResult.bpm} BPM`
-                    : "Ready to scan"}
+                {loopMode === "full"
+                  ? "All chords"
+                  : loopMode === "pair"
+                    ? `${progression[loopStart]} <-> ${progression[loopEnd]}`
+                    : progression[activeIndex]}
               </strong>
             </div>
-            <span>{analysisResult ? `${Math.round(analysisResult.confidence * 100)}% confidence draft` : analysisMessage}</span>
+            <div className="tempo-control">
+              <span>{bpm} BPM</span>
+              <input
+                aria-label="Playback tempo"
+                type="range"
+                min="48"
+                max="132"
+                value={bpm}
+                onChange={(event) => setBpm(Number(event.target.value))}
+              />
+              <button onClick={arrangeProgression}>Arrange + play</button>
+            </div>
           </div>
-        )}
+        </section>
 
-        <div className="utility-row">
-          <div className="skin-picker" aria-label="Guitar skin picker">
-            {skins.map((skin) => (
-              <button
-                className={skin.id === activeSkinId ? "active" : ""}
-                key={skin.id}
-                onClick={() => setActiveSkinId(skin.id)}
-              >
-                <img src={skin.src} alt="" />
-                <span>{skin.name}</span>
-              </button>
-            ))}
-          </div>
-          <button
-            className={`sound-toggle ${soundEnabled ? "active" : ""}`}
-            onClick={() => {
-              const nextSoundEnabled = !soundEnabled;
-              setSoundEnabled(nextSoundEnabled);
-              if (nextSoundEnabled) playChordSound(activeChord, activeTone, true);
-            }}
-          >
-            {soundEnabled ? "Sound on" : "Sound off"}
-          </button>
-        </div>
-
-        <div className="tone-picker" aria-label="Tone picker">
-          {tonePresets.map((tone) => (
+        <section className="dock-group" aria-label="Instrument">
+          <span className="dock-group-label">Instrument</span>
+          <div className="utility-row">
+            <div className="skin-picker" aria-label="Guitar skin picker">
+              {skins.map((skin) => (
+                <button
+                  className={skin.id === activeSkinId ? "active" : ""}
+                  key={skin.id}
+                  onClick={() => setActiveSkinId(skin.id)}
+                >
+                  <img src={skin.src} alt="" />
+                  <span>{skin.name}</span>
+                </button>
+              ))}
+            </div>
             <button
-              className={tone.id === toneId ? "active" : ""}
-              key={tone.id}
+              className={`sound-toggle ${soundEnabled ? "active" : ""}`}
               onClick={() => {
-                setToneId(tone.id);
-                if (soundEnabled) playChordSound(activeChord, tone);
+                const nextSoundEnabled = !soundEnabled;
+                setSoundEnabled(nextSoundEnabled);
+                if (nextSoundEnabled) playChordSound(activeChord, activeTone, true);
               }}
             >
-              {tone.name}
+              {soundEnabled ? "Sound on" : "Sound off"}
             </button>
-          ))}
-        </div>
-
-        <div className="color-picker" aria-label="Marker color picker">
-          {markerPalettes.map((palette) => (
-            <button
-              className={palette.id === paletteId ? "active" : ""}
-              key={palette.id}
-              onClick={() => setPaletteId(palette.id)}
-            >
-              <span
-                style={{
-                  background: `linear-gradient(90deg, ${palette.root} 0 20%, ${palette.third} 20% 40%, ${palette.fifth} 40% 60%, ${palette.seventh} 60% 80%, ${palette.extension} 80% 100%)`
-                }}
-              />
-              {palette.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="progression-row">
-          {progression.map((chord, index) => (
-            <button
-              className={index === activeIndex ? "active" : ""}
-              key={`${chord}-${index}`}
-              onClick={() => selectChord(index)}
-            >
-              {chord}
-            </button>
-          ))}
-        </div>
-
-        <div className="motion-strip" aria-label="Progression playback timeline">
-          {progression.map((chord, index) => (
-            <button
-              className={`${index === activeIndex ? "active" : ""} ${isInsideLoop(index) ? "in-loop" : ""}`}
-              key={`step-${chord}-${index}`}
-              onClick={() => selectChord(index)}
-            >
-              <span>{chord}</span>
-              <small>{degrees[index]}</small>
-              {index === activeIndex ? (
-                <motion.i
-                  layoutId="active-step"
-                  transition={{ type: "spring", stiffness: 220, damping: 26 }}
-                />
-              ) : null}
-            </button>
-          ))}
-        </div>
-
-        <div className="loop-controls" aria-label="Loop controls">
-          <span>Loop</span>
-          <button className={loopMode === "full" ? "active" : ""} onClick={() => selectLoopMode("full")}>
-            Full
-          </button>
-          <button className={loopMode === "pair" ? "active" : ""} onClick={() => selectLoopMode("pair")}>
-            A/B
-          </button>
-          <button className={loopMode === "hold" ? "active" : ""} onClick={() => selectLoopMode("hold")}>
-            Hold
-          </button>
-          <strong>
-            {loopMode === "full"
-              ? "All chords"
-              : loopMode === "pair"
-                ? `${progression[loopStart]} <-> ${progression[loopEnd]}`
-                : progression[activeIndex]}
-          </strong>
-        </div>
-
-        <div className="key-row" aria-label="Key selector">
-          <span>Key</span>
-          <select
-            aria-label="Progression key"
-            value={keyChoice}
-            onChange={(event) => setKeyChoice(event.target.value as "auto" | KeyName)}
-          >
-            <option value="auto">Auto</option>
-            {KEYS.map((key) => (
-              <option key={key} value={key}>
-                {key}
-              </option>
-            ))}
-          </select>
-          <strong>{keyChoice === "auto" ? `Auto · ${effectiveKey}` : effectiveKey}</strong>
-        </div>
-
-        <div className="dock-actions">
-          <button className="secondary-action" onClick={() => step(-1)}>
-            Previous
-          </button>
-          <button className="primary-action" onClick={togglePlayback}>
-            {isPlaying ? "Pause motion" : "Play motion"}
-          </button>
-          <button className="secondary-action" onClick={() => step(1)}>
-            Next
-          </button>
-        </div>
-
-        <div className="tempo-control">
-          <span>{bpm} BPM</span>
-          <input
-            aria-label="Playback tempo"
-            type="range"
-            min="48"
-            max="132"
-            value={bpm}
-            onChange={(event) => setBpm(Number(event.target.value))}
-          />
-          <button onClick={arrangeProgression}>Arrange + play</button>
-        </div>
-
-        {analysisResult ? (
-          <div className="song-chart" aria-label="Generated song chord chart">
-            <header>
-              <div>
-                <p>{analysisResult.source}</p>
-                <strong>{analysisResult.title}</strong>
-              </div>
-              <button onClick={exportChordChart}>Export chart</button>
-            </header>
-            <div className="chart-sections">
-              {analysisResult.sections.map((section) => (
-                <section key={section.name}>
-                  <h3>{section.name}</h3>
-                  <div>
-                    {section.bars.map((bar, index) => (
-                      <button key={`${section.name}-${index}`} onClick={() => selectChartChord(bar[0])}>
-                        <small>{index + 1}</small>
-                        <span>{bar.join("  ")}</span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
+          </div>
+          <div className="instrument-chips">
+            <div className="tone-picker" aria-label="Tone picker">
+              {tonePresets.map((tone) => (
+                <button
+                  className={tone.id === toneId ? "active" : ""}
+                  key={tone.id}
+                  onClick={() => {
+                    setToneId(tone.id);
+                    if (soundEnabled) playChordSound(activeChord, tone);
+                  }}
+                >
+                  {tone.name}
+                </button>
+              ))}
+            </div>
+            <div className="color-picker" aria-label="Marker color picker">
+              {markerPalettes.map((palette) => (
+                <button
+                  className={palette.id === paletteId ? "active" : ""}
+                  key={palette.id}
+                  onClick={() => setPaletteId(palette.id)}
+                >
+                  <span
+                    style={{
+                      background: `linear-gradient(90deg, ${palette.root} 0 20%, ${palette.third} 20% 40%, ${palette.fifth} 40% 60%, ${palette.seventh} 60% 80%, ${palette.extension} 80% 100%)`
+                    }}
+                  />
+                  {palette.name}
+                </button>
               ))}
             </div>
           </div>
-        ) : null}
+        </section>
       </motion.aside>
+      </motion.div>
       ) : null}
       </AnimatePresence>
     </main>
