@@ -1,0 +1,34 @@
+{
+  "demucs": {
+    "repository": "https://github.com/facebookresearch/demucs",
+    "version": "4.0.1",
+    "model": "htdemucs_6s",
+    "checkpoint": ".runtime/models/5c90dfd2-34c22ccb.th",
+    "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th",
+    "sha256": "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd",
+    "license": "MIT"
+  },
+  "chordmini": {
+    "repository": "https://github.com/ptnghia-j/ChordMini",
+    "revision": "aa6e3a8d7b017f082fd2aaff9329d5c26af49c03",
+    "checkpoint": "checkpoints/2e1d_model_best.pth",
+    "sha256": "ecc3de5e7b5b4affdd8e903106e11c24440631e5f43cf22d2a5975b3f160229a",
+    "license": "MIT"
+  },
+  "basic_pitch": {
+    "repository": "https://github.com/spotify/basic-pitch",
+    "version": "0.4.0",
+    "checkpoint": "basic_pitch/saved_models/icassp_2022/nmp.onnx",
+    "sha256": "2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec",
+    "license": "Apache-2.0"
+  },
+  "demucs_vocals": {
+    "repository": "https://github.com/facebookresearch/demucs",
+    "version": "4.0.1",
+    "model": "htdemucs",
+    "checkpoint": "vendor/demucs/955717e8-8726e21a.th",
+    "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
+    "sha256": "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
+    "license": "MIT"
+  }
+}

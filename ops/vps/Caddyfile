@@ -1,0 +1,8 @@
+# Add an A record for api.fretflow.io pointing to this server before enabling.
+# Keep access logging disabled: upload/download URLs contain signed tickets.
+api.fretflow.io {
+    request_body {
+        max_size 100MB
+    }
+    reverse_proxy 127.0.0.1:8771
+}

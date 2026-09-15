@@ -8,3 +8,12 @@ node_modules
 
 # Local QA screenshots and browser captures.
 /*.png
+
+# Model service is hosted separately from the web frontend.
+backend/
+ops/
+tests/
+vendor/
+.venv-audio
+.runtime/
+verification/

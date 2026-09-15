@@ -1,0 +1,68 @@
+[
+  {
+    "id": "strat-olympic-white",
+    "model": "American Professional II Stratocaster",
+    "finish": "Olympic White",
+    "fingerboard": "Rosewood",
+    "file": "/assets/dream-guitars/strat-olympic-white.png",
+    "sourcePage": "https://uk.fender.com/products/american-professional-ii-stratocaster?variant=49498527793439",
+    "sourceImage": "https://cdn.shopify.com/s/files/1/0894/4055/1199/files/0113900705_fen_ins_frt_1_rr.png?v=1742168919&width=2000",
+    "retrieved": "2026-09-14",
+    "rights": "Fender product photography. No redistribution or commercial-use license verified. Local prototype reference."
+  },
+  {
+    "id": "strat-surf-green",
+    "model": "American Professional II Stratocaster",
+    "finish": "Mystic Surf Green",
+    "fingerboard": "Rosewood",
+    "file": "/assets/dream-guitars/strat-surf-green.png",
+    "sourcePage": "https://uk.fender.com/products/american-professional-ii-stratocaster?variant=49498527858975",
+    "sourceImage": "https://cdn.shopify.com/s/files/1/0894/4055/1199/files/0113900718_fen_ins_frt_1_rr.png?v=1742168919&width=2000",
+    "retrieved": "2026-09-14",
+    "rights": "Fender product photography. No redistribution or commercial-use license verified. Local prototype reference."
+  },
+  {
+    "id": "strat-dark-night",
+    "model": "American Professional II Stratocaster",
+    "finish": "Dark Night",
+    "fingerboard": "Rosewood",
+    "file": "/assets/dream-guitars/strat-dark-night.png",
+    "sourcePage": "https://uk.fender.com/products/american-professional-ii-stratocaster?variant=49498527957279",
+    "sourceImage": "https://cdn.shopify.com/s/files/1/0894/4055/1199/files/0113900761_fen_ins_frt_1_rr.png?v=1742168919&width=2000",
+    "retrieved": "2026-09-14",
+    "rights": "Fender product photography. No redistribution or commercial-use license verified. Local prototype reference."
+  },
+  {
+    "id": "tele-aquatone-blue",
+    "model": "Player II Telecaster",
+    "finish": "Aquatone Blue",
+    "fingerboard": "Slab Rosewood",
+    "file": "/assets/dream-guitars/tele-aquatone-blue.png",
+    "sourcePage": "https://intl.fender.com/products/player-ii-telecaster?variant=45947063927006",
+    "sourceImage": "https://cdn.shopify.com/s/files/1/0712/3510/9086/files/0140550518_fen_ins_frt_1_rr.png?v=1728430439&width=2000",
+    "retrieved": "2026-09-14",
+    "rights": "Fender product photography. No redistribution or commercial-use license verified. Local prototype reference."
+  },
+  {
+    "id": "tele-butterscotch",
+    "model": "Player II Telecaster",
+    "finish": "Butterscotch Blonde",
+    "fingerboard": "Maple",
+    "file": "/assets/dream-guitars/tele-butterscotch.png",
+    "sourcePage": "https://intl.fender.com/products/player-ii-telecaster?variant=45947064123614",
+    "sourceImage": "https://cdn.shopify.com/s/files/1/0712/3510/9086/files/0140552550_fen_ins_frt_1_rr.png?v=1728430439&width=2000",
+    "retrieved": "2026-09-14",
+    "rights": "Fender product photography. No redistribution or commercial-use license verified. Local prototype reference."
+  },
+  {
+    "id": "jazzmaster-coral-red",
+    "model": "Player II Jazzmaster",
+    "finish": "Coral Red",
+    "fingerboard": "Slab Rosewood",
+    "file": "/assets/dream-guitars/jazzmaster-coral-red.png",
+    "sourcePage": "https://intl.fender.com/products/player-ii-jazzmaster?variant=45947063763166",
+    "sourceImage": "https://cdn.shopify.com/s/files/1/0712/3510/9086/files/0140590558_fen_ins_frt_1_rr.png?v=1728430398&width=2000",
+    "retrieved": "2026-09-14",
+    "rights": "Fender product photography. No redistribution or commercial-use license verified. Local prototype reference."
+  }
+]

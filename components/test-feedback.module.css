@@ -1,0 +1,15 @@
+.notice {
+  margin: 12px 0;
+  padding: 13px 16px;
+  border: 1px solid #dad5c8;
+  border-radius: 12px;
+  background: #f6f4ec;
+  color: #615c50;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.notice p { margin: 0 0 4px; }
+.notice a, .compact { color: #49543d; text-underline-offset: 3px; }
+.notice a { display: inline-flex; align-items: center; min-height: 44px; }
+.compact { display: inline-flex; align-items: center; min-height: 44px; font-size: 12px; }
+.notice a:focus-visible, .compact:focus-visible { outline: 2px solid #788c70; outline-offset: 4px; }

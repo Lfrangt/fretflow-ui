@@ -10,6 +10,9 @@ build/
 dist/
 
 # Local env
+.env*
+!.env.example
+*.env
 .env
 .env.local
 .env.development.local
@@ -55,3 +58,19 @@ pnpm-debug.log*
 /public/assets/skin-*.avif
 /public/assets/fender-stratocaster.svg
 .gstack/
+
+# Local Fender reference photos; sources and calibration remain versioned.
+/public/assets/dream-guitars/*.png
+
+# Local transcription models and private files
+.runtime/
+.venv-audio
+vendor/
+__pycache__/
+.pytest_cache/
+verification/
+test-results/
+playwright-report/
+coverage/
+*.tsbuildinfo
+/public/alphatab/

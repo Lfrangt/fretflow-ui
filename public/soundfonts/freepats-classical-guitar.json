@@ -1,0 +1,18 @@
+{
+  "name": "FreePats Spanish classical guitar",
+  "version": "2019-06-18",
+  "source": "https://freepats.zenvoid.org/Guitar/acoustic-guitar.html",
+  "archive": "https://freepats.zenvoid.org/Guitar/SpanishClassicalGuitar/SpanishClassicalGuitar-SF2-20190618.7z",
+  "license": "CC0-1.0",
+  "modification": "Single preset changed from bank 0/program 0 to bank 0/program 24; original guitar samples unchanged.",
+  "source_sha256": "0d4c08ea8c1c8924b3829084b0c8778f6d6b906f331e44fde51bc159f76b03b9",
+  "sha256": "d53119b30fc0bf1cf65d5e2791a386031ec80a2df6edecb69ebec4fa2a6a3a09",
+  "bytes": 19822546,
+  "presets": [
+    {
+      "bank": 0,
+      "program": 24,
+      "name": "Classical guitar"
+    }
+  ]
+}

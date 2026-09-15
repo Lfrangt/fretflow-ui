@@ -1,0 +1,284 @@
+/* The original May 2026 Harmony input layout, with current music logic. */
+.classic-workspace {
+  grid-template-rows: minmax(320px, 1fr) auto;
+  gap: 22px;
+  padding: 18px 24px 24px;
+  min-height: 680px;
+  overflow-y: auto;
+}
+.classic-workspace::before { display: none; }
+.classic-view-controls {
+  position: absolute;
+  z-index: 9;
+  right: 24px;
+  top: 20px;
+  display: flex;
+  gap: 8px;
+}
+.classic-view-controls button {
+  border: 1px solid rgba(50,45,38,.08);
+  border-radius: 999px;
+  background: rgba(255,255,255,.65);
+  color: #79746b;
+  padding: 8px 13px;
+  font-size: 12px;
+}
+.classic-workspace .instrument-stage {
+  --detail-width: 76vw;
+  --detail-height: clamp(210px, 16vw, 350px);
+  --detail-top: calc(50% - (var(--detail-height) + 26px) / 2 + 24px);
+  height: auto;
+  min-height: 320px;
+}
+.classic-workspace .fretboard-detail-layer {
+  left: 47%;
+  width: var(--detail-width);
+  max-width: 1700px;
+}
+.classic-workspace .fretboard-detail-layer::before { display: none; }
+.classic-workspace .fretboard-detail-layer::after { opacity: .35; }
+.classic-workspace .guitar-model {
+  position: absolute;
+  width: 80vw;
+  max-width: 2500px;
+  left: 8vw;
+  top: calc(50% - 17.7vw - 21px);
+  transform-origin: 62% 50%;
+}
+.classic-workspace.is-focused .guitar-model {
+  opacity: .56;
+  mask-image: linear-gradient(90deg, transparent 0 42%, #000 64%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0 42%, #000 64%);
+}
+.classic-workspace:not(.is-focused) .guitar-model {
+  display: block;
+  width: min(1180px, 94vw);
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+}
+.classic-workspace .chord-diagram-card {
+  left: 0;
+  right: auto;
+  top: 8px;
+  width: 106px;
+}
+.classic-workspace .stage-progression { display: none; }
+.classic-workspace .input-dock.settings-dock {
+  position: relative;
+  inset: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
+  gap: 8px 16px;
+  align-items: center;
+  width: min(1000px, calc(100vw - 56px));
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 14px 16px;
+  overflow: visible;
+  border-radius: 25px;
+  background: linear-gradient(180deg, rgba(255,255,255,.88), rgba(247,243,234,.84));
+  box-shadow: inset 0 1px 0 #fff, 0 18px 54px rgba(78,67,50,.09);
+}
+.classic-workspace .dock-group,
+.classic-workspace .dock-columns,
+.classic-workspace .playback-row,
+.classic-workspace .instrument-chips { display: contents; }
+.classic-workspace .dock-group + .dock-group { border: 0; padding: 0; }
+.classic-workspace .dock-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 0;
+}
+.classic-workspace .dock-heading p {
+  margin: 0 0 3px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 650;
+}
+.classic-workspace .dock-heading h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 620;
+  letter-spacing: -.02em;
+}
+.classic-workspace .segmented { min-width: 264px; padding: 3px; }
+.classic-workspace .segmented button { height: 30px; font-size: 14px; }
+.classic-workspace textarea {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 74px;
+  height: 74px;
+  align-self: start;
+}
+.classic-workspace .preset-library {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 6px;
+}
+.classic-workspace .preset-library button { height: 26px; min-height: 26px; padding: 3px 9px; gap: 1px; }
+.classic-workspace .preset-library small { font-size: 9px; line-height: 1; }
+.classic-workspace .preset-library span { font-size: 11px; line-height: 1.1; }
+.classic-workspace .source-panel { grid-column: 1; grid-row: 2; grid-template-columns: 1fr; }
+.classic-workspace .source-panel .recognize-action { min-height: 36px; }
+.classic-workspace .analysis-panel { grid-column: 2; grid-row: 2; }
+.classic-workspace .utility-row {
+  grid-column: 1;
+  grid-row: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.classic-workspace .skin-picker { display: flex; min-width: 0; }
+.classic-workspace .skin-chip {
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  height: 42px;
+  max-width: 240px;
+  padding: 5px 12px 5px 5px;
+  border-radius: 14px;
+  background: #22211f;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+}
+.classic-workspace .skin-chip img { width: 46px; height: 27px; object-fit: contain; background: #f7f4ec; border-radius: 4px; }
+.classic-workspace .sound-toggle { padding: 0 16px; }
+.classic-workspace .motion-strip { grid-column: 2; grid-row: 3; gap: 7px; }
+.classic-workspace .motion-strip button { min-width: 64px; height: 40px; }
+.classic-workspace .motion-strip button small { display: none; }
+.classic-workspace .progression-row {
+  grid-column: 1;
+  grid-row: 4;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 3px 0;
+}
+.classic-workspace .progression-row button {
+  border: 0;
+  border-radius: 999px;
+  min-width: 64px;
+  height: 30px;
+  background: rgba(255,255,255,.55);
+  color: var(--muted);
+  font-size: 14px;
+}
+.classic-workspace .progression-row button.active { background: #22211f; color: white; }
+.classic-workspace .loop-controls { grid-column: 2; grid-row: 4; gap: 7px; flex-wrap: nowrap; }
+.classic-workspace .loop-controls strong { margin-left: auto; font-size: 11px; }
+.classic-workspace .loop-controls button { padding: 0 14px; }
+.classic-workspace .tone-picker {
+  grid-column: 1;
+  grid-row: 5;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  gap: 6px;
+  padding: 2px 0;
+}
+.classic-workspace .tone-picker button { flex-shrink: 0; font-size: 11px; padding: 0 11px; height: 34px; }
+.classic-workspace .dock-actions { grid-column: 2; grid-row: 5; display: grid; grid-template-columns: 1fr 1.65fr 1fr; gap: 9px; }
+.classic-workspace .dock-actions button {
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.classic-workspace .secondary-action { color: #5e584f; background: rgba(255,255,255,.7); }
+.classic-workspace .primary-action { background: #22211f; color: white; }
+.classic-workspace .tempo-control { grid-column: 1; grid-row: 6; gap: 10px; }
+.classic-workspace .tempo-control input { min-width: 40px; }
+.classic-workspace .tempo-control button { padding: 0 13px; font-size: 12px; }
+.classic-workspace .color-picker { grid-column: 2; grid-row: 6; flex-wrap: nowrap; gap: 7px; margin: 0; justify-content: flex-end; }
+.classic-workspace .color-picker button { height: 32px; font-size: 11px; }
+.classic-workspace .classic-key-options { position: relative; color: var(--muted); font-size: 12px; }
+.classic-workspace .classic-key-options summary { cursor: pointer; width: fit-content; padding: 8px 13px; }
+.classic-workspace .classic-key-options .key-row { position: absolute; top: 40px; right: 0; width: 240px; padding: 14px; background: #fcfaf5; border: 1px solid var(--hairline); border-radius: 16px; box-shadow: 0 10px 25px #34201812; }
+.classic-workspace .song-chart { grid-column: 1 / -1; grid-row: 8; }
+.classic-workspace button:focus-visible,
+.classic-workspace summary:focus-visible { outline: 2px solid #6f9467; outline-offset: 3px; }
+.classic-workspace button:hover { filter: brightness(.97); }
+
+@media (min-width: 1800px) {
+  .classic-workspace .input-dock.settings-dock { width: min(1450px, 68vw); gap: 14px 20px; padding: 22px; }
+  .classic-workspace .dock-heading h2 { font-size: 22px; }
+  .classic-workspace .preset-library button { height: 34px; }
+  .classic-workspace .motion-strip button, .classic-workspace .dock-actions button { height: 46px; }
+}
+@media (max-width: 1000px) {
+  .classic-workspace .input-dock.settings-dock { width: calc(100vw - 48px); }
+  .classic-workspace .instrument-stage { --detail-width: 88vw; }
+  .classic-workspace .fretboard-detail-layer { left: 50%; }
+  .classic-workspace .chord-diagram-card { top: 0; width: 85px; transform: scale(.82); transform-origin: top left; }
+}
+@media (max-width: 700px) {
+  .classic-workspace { min-height: 100svh; height: 100svh; padding: 12px; gap: 20px; grid-template-rows: 285px auto; }
+  .classic-view-controls { top: 16px; right: 12px; }
+  .classic-view-controls button { padding: 8px 10px; font-size: 11px; }
+  .classic-workspace .instrument-stage { --detail-height: 155px; --detail-width: calc(100vw - 24px); --detail-top: 106px; min-height: 285px; }
+  .classic-workspace .detail-ruler { margin-left: 10px; font-size: 9px; }
+  .classic-workspace .detail-ruler span { padding: 0; text-align: center; }
+  .classic-workspace .detail-note { width: 27px; height: 27px; font-size: 10px; }
+  .classic-workspace .guitar-model { display: none; }
+  .classic-workspace .chord-diagram-card { top: 0; }
+  .classic-workspace .input-dock.settings-dock { width: 100%; grid-template-columns: minmax(0,1fr); padding: 14px; gap: 14px; }
+  .classic-workspace .dock-heading { display: grid; gap: 14px; margin: 0; }
+  .classic-workspace .dock-heading h2 { font-size: 16px; }
+  .classic-workspace .segmented { width: 100%; min-width: 0; }
+  .classic-workspace .input-dock textarea,
+  .classic-workspace .preset-library,
+  .classic-workspace .source-panel,
+  .classic-workspace .analysis-panel,
+  .classic-workspace .utility-row,
+  .classic-workspace .progression-row,
+  .classic-workspace .motion-strip,
+  .classic-workspace .loop-controls,
+  .classic-workspace .tone-picker,
+  .classic-workspace .dock-actions,
+  .classic-workspace .tempo-control,
+  .classic-workspace .color-picker,
+  .classic-workspace .classic-key-options,
+  .classic-workspace .song-chart { grid-column: 1; grid-row: auto; }
+  .classic-workspace .color-picker { justify-content: flex-start; }
+  .classic-workspace .loop-controls { flex-wrap: wrap; }
+  .classic-workspace .input-dock textarea { min-height: 72px; }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  .classic-workspace { min-height: 0; grid-template-rows: 1fr; padding: 12px; overflow: hidden; }
+  .classic-workspace .instrument-stage { --detail-height: min(48svh, 200px); --detail-width: calc(100vw - 80px); --detail-top: max(80px, calc(50svh - 80px)); min-height: 0; }
+  .classic-workspace .guitar-model { display: none; }
+  .classic-workspace .chord-diagram-card { display: none; }
+  .classic-workspace .dock-flow-slot { grid-area: auto; position: absolute; z-index: 10; right: 12px; top: 62px; bottom: 12px; width: 360px; }
+  .classic-workspace .input-dock.settings-dock { width: 100%; height: 100%; max-height: 100%; overflow-y: auto; grid-template-columns: minmax(0,1fr); }
+  .classic-workspace .dock-heading { flex-direction: column; align-items: stretch; }
+  .classic-workspace .input-dock textarea,
+  .classic-workspace .input-dock .preset-library,
+  .classic-workspace .input-dock .source-panel,
+  .classic-workspace .input-dock .analysis-panel,
+  .classic-workspace .input-dock .utility-row,
+  .classic-workspace .input-dock .progression-row,
+  .classic-workspace .input-dock .motion-strip,
+  .classic-workspace .input-dock .loop-controls,
+  .classic-workspace .input-dock .tone-picker,
+  .classic-workspace .input-dock .dock-actions,
+  .classic-workspace .input-dock .tempo-control,
+  .classic-workspace .input-dock .color-picker,
+  .classic-workspace .input-dock .classic-key-options { grid-column: 1; grid-row: auto; }
+  .classic-workspace.settings-open .instrument-stage { --detail-width: calc(100vw - 420px); }
+  .classic-workspace.settings-open .fretboard-detail-layer { left: calc((100vw - 396px) / 2 - 12px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .classic-workspace *, .classic-workspace *::after { transition-duration: .01ms !important; animation: none !important; }
+}

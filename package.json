@@ -10,7 +10,7 @@
   "bugs": {
     "url": "https://github.com/Lfrangt/fretflow-ui/issues"
   },
-  "homepage": "https://fretflow-ui.vercel.app",
+  "homepage": "https://www.fretflow.io",
   "keywords": [
     "guitar",
     "fretboard",
@@ -22,13 +22,23 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "predev": "node scripts/prepare-notation.mjs",
+    "prebuild": "node scripts/prepare-notation.mjs",
+    "typecheck": "tsc --noEmit",
+    "worker": ".venv-audio/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8771",
+    "test:audio": ".venv-audio/bin/python -m pytest -q",
+    "setup:audio": "bash scripts/setup.sh",
+    "setup:separation": "bash scripts/setup-separation.sh",
+    "setup:vocals": "bash scripts/setup-vocals.sh",
+    "test": "node --test tests/*.test.cjs tests/*.test.mjs"
   },
   "dependencies": {
+    "@coderline/alphatab": "1.8.4",
     "@liquid-dom/core": "^0.1.0",
     "@liquid-dom/react": "^0.1.0",
+    "@vercel/analytics": "1.6.1",
     "motion": "latest",
-    "next": "latest",
+    "next": "16.3.5",
     "react": "latest",
     "react-dom": "latest"
   },
@@ -38,5 +48,8 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "typescript": "latest"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

@@ -1,0 +1,60 @@
+/* Locale controls stay reachable in the active modal and on small screens. */
+.language-switcher {
+  flex: 0 0 auto;
+  max-width: 102px;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid #d8d0c3;
+  border-radius: 9px;
+  background: #fffaf2;
+  color: #514a40;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.language-switcher:focus-visible { outline: 2px solid #788c70; outline-offset: 3px; }
+.sheet-header-actions, .transcription-header-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.practice-header .transcribe-header-note { min-width: 0; max-width: 36%; text-align: center; }
+.sheet-heading { min-width: 0; }
+.sheet-heading h2 { overflow-wrap: anywhere; }
+html:lang(zh) .eyebrow { letter-spacing: .08em; }
+html:lang(zh) .neck-caption { letter-spacing: .04em; }
+.transcription-journey li { min-width: 0; }
+@media (max-width: 1100px) { .practice-header .transcribe-header-note { display: none; } }
+@media (max-width: 700px) {
+  .transcription-header { flex-wrap: wrap; }
+  .transcription-header > div:first-child { flex: 1 1 100%; }
+  .transcription-header-actions { margin-left: auto; }
+  .sheet-header { gap: 10px; }
+  .sheet-header-actions { gap: 5px; }
+  .sheet-heading h2 { font-size: 20px; }
+  .transcription-journey { flex-wrap: wrap; row-gap: 14px; }
+}
+@media (max-width: 600px) {
+  .practice-header { gap: 7px; }
+  .practice-header .brand-section { display: none; }
+  .practice-header .language-switcher { width: 79px; padding: 6px; }
+}
+@media (max-width: 370px) {
+  .practice-workspace { --page-gutter: 12px; }
+  .practice-brand { font-size: 16px; gap: 6px; }
+  .practice-header .transcribe-entry { padding-inline: 8px; }
+  .practice-header .transcribe-entry svg { display: none; }
+}
+/* Also keep the controls reachable at high zoom (under 370 CSS pixels). */
+@media (max-width: 370px) {
+  .practice-workspace { grid-template-rows: 90px minmax(0, 1fr) auto 30px; }
+  .practice-header { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; padding-block: 6px; }
+  .practice-brand { grid-column: 1; grid-row: 1; }
+  .practice-header > .language-switcher { grid-column: 2; grid-row: 1; justify-self: end; }
+  .practice-header > .transcribe-entry { grid-column: 1; grid-row: 2; justify-self: start; }
+  .practice-header > .quiet-button { grid-column: 2; grid-row: 2; justify-self: end; }
+  .practice-dock { min-width: 0; }
+  .practice-dock-heading { flex-wrap: wrap; gap: 6px; }
+  .practice-transport { grid-template-columns: 1fr auto; row-gap: 8px; }
+  .transport-center { grid-column: 1 / -1; grid-row: 1; justify-self: center; }
+  .tempo-shortcut { grid-column: 1; grid-row: 2; }
+  .practice-position { grid-column: 2; grid-row: 2; }
+  .sheet-header { flex-wrap: wrap; }
+  .sheet-header-actions { margin-left: auto; }
+}
