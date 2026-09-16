@@ -33,13 +33,35 @@ export type FretWindow = { first: number; last: number };
 /** Keep nearby chords in the same shot; move only when they reach its edges. */
 export function fretboardWindow(frets: number[], previous: FretWindow, fretCount = PRACTICE_FRET_COUNT): FretWindow {
   if (!frets.length) return previous;
-  const low = Math.max(1, Math.min(...frets));
-  const high = Math.min(fretCount, Math.max(...frets));
+  // An open string is shown beside the visible window; it must not pull a high
+  // position all the way back to the nut.
+  const stopped = frets.filter(fret => fret > 0);
+  const low = stopped.length ? Math.max(1, Math.min(...stopped)) : 1;
+  const high = stopped.length ? Math.min(fretCount, Math.max(...stopped)) : 1;
   if (low >= previous.first + (previous.first === 1 ? 0 : 1)
     && high <= previous.last - (previous.last === fretCount ? 0 : 1)) return previous;
   const count = Math.min(fretCount, Math.max(8, high - low + 3));
   const first = Math.max(1, Math.min(fretCount - count + 1, Math.floor((low + high - count + 1) / 2)));
   return { first, last: first + count - 1 };
+}
+
+/** A local Focus view of the same continuous neck, with a joined fading body. */
+export function focusGuitarLayout(guitar: DreamGuitar, width: number, height: number, window: FretWindow, fretCount = PRACTICE_FRET_COUNT) {
+  const start = fretCell(window.first, fretCount).start;
+  const end = fretCell(window.last, fretCount).end;
+  const padding = Math.min(56, width * .055);
+  const gridWidth = Math.max(1, width - padding * 2) / (end - start);
+  const neckWidth = gridWidth + 14;
+  const neckHeight = Math.max(140, Math.min(260, height * .48));
+  const neckX = 40;
+  const neckY = 72;
+  const photoWidth = neckHeight * guitar.photoScale;
+  return { width: neckWidth + 80, height: neckHeight + 144,
+    photoX: neckX + neckWidth + 22 - photoWidth * guitar.joinX,
+    photoY: neckY + neckHeight / 2 - photoWidth * guitar.centerY, photoWidth,
+    neckX, neckY, neckWidth, neckHeight, jointWidth: 22, joined: true,
+    cameraX: padding - neckX - 14 - start * gridWidth,
+    openX: 14 + start * gridWidth - 28 };
 }
 
 /** Leave neighbouring frets around the shape and hold still inside that safe area. */

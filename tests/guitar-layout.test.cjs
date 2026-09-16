@@ -17,7 +17,7 @@ function load(name) {
 }
 
 const { dreamGuitars } = load('dream-guitars');
-const { fretCell, fretDistance, photoMarkerPosition, fretboardWindow, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
+const { fretCell, fretDistance, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
 test('photo C shape lands on measured strings instead of above the photographed neck', () => {
@@ -143,4 +143,32 @@ test('desktop camera holds nearby shapes, frames high positions, and preserves r
   assert.equal(low.first, 1);
   const wide = fretboardWindow([1, 17], initial);
   assert.ok(wide.first <= 1 && wide.last >= 17);
+});
+
+test('Focus shows the active position with context and keeps the fading body attached', () => {
+  for (const width of [900, 1280, 1440, 1920]) {
+    for (const frets of [[1, 3], [7, 8, 10], [15, 16, 17], [20, 21]]) {
+      const window = fretboardWindow(frets, { first: 1, last: 8 });
+      for (const guitar of dreamGuitars) {
+        const layout = focusGuitarLayout(guitar, width, 500, window);
+        const screenX = fret => layout.cameraX + layout.neckX + 14 + fretCell(fret).center * (layout.neckWidth - 14);
+        for (const fret of frets) assert.ok(screenX(fret) > 36 && screenX(fret) < width - 36, 'active note fits with room for its badge');
+        if (window.first > 1) assert.ok(screenX(1) < 0, 'unused low positions stay outside the viewport');
+        if (window.last < 21) assert.ok(screenX(21) > width, 'unused high positions stay outside the viewport');
+        close(layout.photoY + layout.photoWidth * guitar.centerY, layout.neckY + layout.neckHeight / 2);
+        close(layout.photoX + layout.photoWidth * guitar.joinX, layout.neckX + layout.neckWidth + layout.jointWidth);
+        assert.ok(layout.neckHeight >= 140 && layout.neckHeight <= 260);
+      }
+    }
+  }
+});
+
+test('open strings do not pull a high position back to the nut', () => {
+  const window = fretboardWindow([0, 15, 17], { first: 1, last: 8 });
+  assert.ok(window.first > 1 && window.last >= 18);
+  assert.equal(window.last - window.first + 1, 8);
+  const layout = focusGuitarLayout(dreamGuitars[0], 1280, 500, window);
+  const openX = layout.cameraX + layout.neckX + layout.openX;
+  assert.ok(openX >= 18 && openX <= 56, 'open badge remains beside the visible position');
+  assert.equal(fretboardWindow([0], window).first, 1);
 });

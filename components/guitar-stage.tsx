@@ -5,7 +5,7 @@ import { useLanguage } from "./language-provider";
 import { animate, AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useId, useEffect, useRef, useState } from "react";
 import type { DreamGuitar } from "@/lib/dream-guitars";
-import { fretCell, photoMarkerPosition, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } from "@/lib/guitar-layout";
+import { fretCell, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } from "@/lib/guitar-layout";
 import { WorkspaceIcon } from "./workspace-icon";
 
 type Marker = { string: number; fret: number; interval: string; finger: number; midi?: number };
@@ -62,18 +62,54 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
   const visibleFrets = lastFret - firstFret + 1;
   const fretColumns = Array.from({ length: visibleFrets }, (_, i) => `minmax(0, ${fretCell(i + 1, lastFret).width}fr)`).join(" ");
   const markerX = (fret: number) => fret === 0 ? fretCell(1, lastFret).width * .18 : fretCell(fret, lastFret).center;
+  const markerFrets = markers.map(marker => marker.fret).join(",");
+  const [framing, setFraming] = useState({ key: markerFrets, mode: focusMode, lastFret, window: fretboardWindow(markers.map(marker => marker.fret), { first: 1, last: 8 }, lastFret) });
+  if (framing.key !== markerFrets || framing.mode !== focusMode || framing.lastFret !== lastFret) {
+    setFraming({ key: markerFrets, mode: focusMode, lastFret, window: fretboardWindow(markers.map(marker => marker.fret), framing.window, lastFret) });
+  }
+  const [focusMotion, setFocusMotion] = useState({ mode: focusMode, settled: true });
+  if (focusMotion.mode !== focusMode) setFocusMotion({ mode: focusMode, settled: false });
   const compact = space.width < 640;
   // Preserve the shared desktop scene: Focus enlarges the same neck while the
   // attached guitar dissolves. Phones show the full guitar until Focus is entered.
   const mobileFocus = focusMode && (space.width < 900 || phoneLandscape);
   const practiceView = focused && !compact && !phoneLandscape;
-  const layout = mobileFocus ? mobileFocusLayout(guitar, space.width, space.height - (phoneLandscape ? 44 : 94), visibleFrets) : guitarLayout(guitar, practiceView, compact, focusMode);
+  const desktopFocus = focusMode && !mobileFocus;
+  const focusLayout = focusGuitarLayout(guitar, space.width, space.height, framing.window, lastFret);
+  const layout = desktopFocus ? focusLayout : mobileFocus ? mobileFocusLayout(guitar, space.width, space.height - (phoneLandscape ? 44 : 94), visibleFrets) : guitarLayout(guitar, practiceView, compact, focusMode);
   const showNeck = practiceView || focusMode;
-  const scale = mobileFocus ? 1 : Math.max(0, Math.min((space.width - 16) / layout.width, (space.height - (showNeck ? 20 : 64)) / layout.height, 1.15));
-  const markerFrets = markers.map(marker => marker.fret).join(",");
+  const scale = mobileFocus || desktopFocus ? 1 : Math.max(0, Math.min((space.width - 16) / layout.width, (space.height - (showNeck ? 20 : 64)) / layout.height, 1.15));
   const glideDuration = reduceMotion || noteMode ? 0 : isPlaying ? Math.min(.62, chordDurationMs / 1000 * .38) : .58;
   const scrollDuration = reduceMotion ? 0 : noteMode ? .22 : glideDuration;
   function stopScrollAnimation() { scrollAnimationRef.current?.stop(); }
+  function panFocus(amount: number) {
+    setFraming(previous => {
+      const count = previous.window.last - previous.window.first + 1;
+      const first = Math.max(1, Math.min(lastFret - count + 1, previous.window.first + amount));
+      return first === previous.window.first ? previous : { ...previous, window: { first, last: first + count - 1 } };
+    });
+  }
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!desktopFocus || !viewport) return;
+    let distance = 0;
+    function wheel(event: WheelEvent) {
+      // Keep browser pinch-to-zoom available.
+      if (event.ctrlKey) return;
+      event.preventDefault();
+      distance += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (Math.abs(distance) < 48) return;
+      const amount = Math.sign(distance);
+      distance = 0;
+      setFraming(previous => {
+        const count = previous.window.last - previous.window.first + 1;
+        const first = Math.max(1, Math.min(lastFret - count + 1, previous.window.first + amount));
+        return first === previous.window.first ? previous : { ...previous, window: { first, last: first + count - 1 } };
+      });
+    }
+    viewport.addEventListener("wheel", wheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", wheel);
+  }, [desktopFocus, lastFret]);
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -98,22 +134,30 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
   const focusTransition = { duration: reduceMotion ? 0 : 1.2, ease: focusEase };
   const glideTransition = { duration: glideDuration, ease: glideEase };
   const sceneTarget = {
-    width: layout.width, height: layout.height, scale, x: mobileFocus ? "0%" : "-50%", y: "-50%",
+    width: layout.width, height: layout.height, scale,
+    x: desktopFocus ? focusLayout.cameraX : mobileFocus ? 0 : (space.width - layout.width * scale) / 2,
+    y: ((space.height - (mobileFocus ? phoneLandscape ? 44 : 94 : 0)) - layout.height * scale) / 2,
     marginTop: showNeck ? 0 : -22,
-    "--photo-width": `${layout.photoWidth}px`, "--photo-x": `${layout.photoX}px`, "--photo-y": `${layout.photoY}px`, "--photo-aspect": guitar.aspect,
+    "--focus-open-x": `${focusLayout.openX}px`, "--photo-width": `${layout.photoWidth}px`, "--photo-x": `${layout.photoX}px`, "--photo-y": `${layout.photoY}px`, "--photo-aspect": guitar.aspect,
     "--neck-x": `${layout.neckX}px`, "--neck-y": `${layout.neckY}px`, "--neck-width": `${layout.neckWidth}px`, "--neck-height": `${layout.neckHeight}px`, "--joint-width": `${layout.jointWidth}px`, "--focus-note-size": `${Math.min(28, layout.neckHeight * .15)}px`
   };
   const dissolveMask = focusMode
     ? "linear-gradient(90deg, #000 15%, transparent 65%)"
     : "linear-gradient(90deg, #000 105%, transparent 155%)";
-  return <section ref={stageRef} className={`practice-stage ${mobileFocus ? "mobile-focus" : ""} ${noteMode ? "sounding-note-view" : ""} ${showNeck ? "focused" : "whole-guitar"} ${focusMode ? "focus-mode" : ""} ${layout.joined ? "joined-guitar" : "separate-guitar"} ${compact ? "compact-guitar" : ""} ${isPlaying ? "playing" : ""} ${guitar.maple ? "maple-neck" : ""} ${guitar.legacy ? "legacy-photo" : ""}`} aria-label={t("Interactive guitar stage")}>
+  return <section ref={stageRef} className={`practice-stage ${mobileFocus ? "mobile-focus" : ""} ${desktopFocus ? "focus-camera" : ""} ${noteMode ? "sounding-note-view" : ""} ${showNeck ? "focused" : "whole-guitar"} ${focusMode ? "focus-mode" : ""} ${layout.joined ? "joined-guitar" : "separate-guitar"} ${compact ? "compact-guitar" : ""} ${isPlaying ? "playing" : ""} ${guitar.maple ? "maple-neck" : ""} ${guitar.legacy ? "legacy-photo" : ""}`} aria-label={t("Interactive guitar stage")}>
     <button ref={focusButtonRef} className="stage-focus-toggle" aria-pressed={focusMode} aria-label={t(focusMode ? "Exit focus mode" : "Enter focus mode")} onClick={() => onFocusModeChange(!focusMode)}>
       <WorkspaceIcon name={focusMode ? "collapse" : "focus"} size={16} /><span>{t(focusMode ? "Exit focus" : "Focus mode")}</span>{focusMode ? <kbd>Esc</kbd> : null}
     </button>
-    {mobileFocus ? <div className="focus-current-chord"><strong>{chord}</strong><span>{degree}</span></div> : null}
-    <div ref={viewportRef} className="instrument-viewport" tabIndex={mobileFocus ? 0 : undefined} role={mobileFocus ? "region" : undefined} aria-label={mobileFocus ? t("Scrollable fretboard") : undefined}
-      onPointerDown={stopScrollAnimation} onTouchStart={stopScrollAnimation} onWheel={stopScrollAnimation} onKeyDown={stopScrollAnimation}>
-    {space.width > 0 ? <motion.div className="instrument-composition" initial={false} animate={sceneTarget} transition={mobileFocus ? { duration: reduceMotion ? 0 : .2, ease: focusEase, width: { duration: 0 }, x: { duration: 0 }, scale: { duration: 0 } } : focusTransition}>
+    {mobileFocus || desktopFocus ? <div className="focus-current-chord"><strong>{chord}</strong><span>{degree}</span></div> : null}
+    <div ref={viewportRef} className="instrument-viewport" tabIndex={focusMode ? 0 : undefined} role={focusMode ? "region" : undefined} aria-label={focusMode ? t("Scrollable fretboard") : undefined}
+      onPointerDown={stopScrollAnimation} onTouchStart={stopScrollAnimation} onWheel={stopScrollAnimation} onKeyDown={event => {
+        stopScrollAnimation();
+        if (!desktopFocus || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        panFocus(event.key === "Home" ? -lastFret : event.key === "End" ? lastFret : event.key === "ArrowLeft" ? -1 : 1);
+      }}>
+    {space.width > 0 ? <motion.div className="instrument-composition" initial={false} animate={sceneTarget} transition={mobileFocus ? { duration: reduceMotion ? 0 : .2, ease: focusEase, width: { duration: 0 }, x: { duration: 0 }, scale: { duration: 0 } } : desktopFocus && focusMotion.settled ? { duration: scrollDuration, ease: glideEase } : focusTransition}
+      onAnimationComplete={() => setFocusMotion(previous => previous.settled ? previous : { ...previous, settled: true })}>
       <div className="instrument-photo-frame" aria-hidden={focusMode}>
         <motion.div className="instrument-photo-material" initial={false}
           animate={{ opacity: focusMode ? 0 : 1, filter: focusMode ? "blur(22px) saturate(0.4) brightness(1.16)" : "blur(0px) saturate(1) brightness(1)", "--dissolve-mask": dissolveMask, rotateY: focusMode ? -6 : 0 }}
@@ -123,11 +167,14 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
         <motion.div className="photo-voicing" initial={false} animate={{ opacity: showNeck ? 0 : 1 }} transition={focusTransition} role="img" aria-hidden={showNeck} aria-label={t("{chord} fingering on {model}", { chord, model: guitar.model })}>
           <AnimatePresence initial={false}>{markers.map(marker => <motion.span key={marker.string} className={`practice-note ${colorClass(marker.interval)}`} initial={{ opacity: 0 }}
             animate={{ left: `${photoMarkerPosition(guitar, marker.string, marker.fret).x * 100}%`, top: `${photoMarkerPosition(guitar, marker.string, marker.fret).y * 100}%`, opacity: 1 }}
-            exit={{ opacity: 0 }} transition={glideTransition}><span className="photo-note-label">{marker.interval}</span></motion.span>)}</AnimatePresence>
+            exit={{ opacity: 0 }} transition={glideTransition} />)}</AnimatePresence>
+          <div className="photo-note-labels" aria-hidden="true"><AnimatePresence initial={false}>{markers.map(marker => <motion.span key={marker.string} className="photo-note-label" initial={{ opacity: 0 }}
+            animate={{ left: `${photoMarkerPosition(guitar, marker.string, marker.fret).x * 100}%`, top: `${photoMarkerPosition(guitar, marker.string, marker.fret).y * 100}%`, opacity: 1 }}
+            exit={{ opacity: 0 }} transition={glideTransition}>{marker.interval}</motion.span>)}</AnimatePresence></div>
         </motion.div>
       </div>
       <motion.div className="learning-neck" initial={false} animate={{ opacity: showNeck ? 1 : 0 }} transition={focusTransition} aria-hidden={!showNeck}>
-        {noteMode ? <div className="neck-open-strings" aria-hidden="true">{markers.filter(marker => marker.fret === 0).map(marker => <span key={marker.midi}
+        {noteMode || desktopFocus ? <div className="neck-open-strings" aria-hidden="true">{markers.filter(marker => marker.fret === 0).map(marker => <span key={marker.midi ?? marker.string}
           data-midi={marker.midi} data-string={marker.string} data-fret={0} className={`practice-note open-string ${colorClass(marker.interval)}`}
           style={{ top: `${stringY(marker.string)}%` }} title={`${marker.interval} · ${t("String {string}, open", marker)}`}>0</span>)}</div> : null}
         <div className="neck-ruler" style={{ gridTemplateColumns: fretColumns }} aria-hidden="true">{Array.from({ length: visibleFrets }, (_, i) => <span key={i} data-fret={i + firstFret}>{i + firstFret}</span>)}</div>
@@ -147,7 +194,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
             <div className="neck-inlays" aria-hidden="true">{[3, 5, 7, 9, 12, 15, 17, 19, 21].filter(fret => fret >= firstFret && fret < firstFret + visibleFrets).map(fret => <b className={fret === 12 ? "double" : ""} key={fret} data-fret={fret} style={{ left: `${fretCell(fret, lastFret).center * 100}%` }} />)}</div>
             <div className="neck-strings" aria-hidden="true">{(tuning === "drop-d" && noteMode ? [...strings.slice(0, -1), "D"] : strings).map((name, i) => <span key={i} data-string={i + 1} style={{ top: `${stringY(i + 1)}%`, height: `${1.2 + i * .32}px` }}><small>{name}</small></span>)}</div>
             {noteMode ? markers.filter(marker => marker.fret > 0).map(marker => <span key={`midi-${marker.midi}`} data-midi={marker.midi} data-string={marker.string} data-fret={marker.fret} className={`practice-note ${colorClass(marker.interval)}`}
-              style={{ top: `${stringY(marker.string)}%`, left: `${markerX(marker.fret) * 100}%` }} aria-hidden="true">{marker.interval}</span>) : <AnimatePresence initial={false}>{markers.map(marker => <motion.span key={`string-${marker.string}`} data-string={marker.string} data-fret={marker.fret} className={`practice-note ${colorClass(marker.interval)}`}
+              style={{ top: `${stringY(marker.string)}%`, left: `${markerX(marker.fret) * 100}%` }} aria-hidden="true">{marker.interval}</span>) : <AnimatePresence initial={false}>{markers.filter(marker => !desktopFocus || marker.fret > 0).map(marker => <motion.span key={`string-${marker.string}`} data-string={marker.string} data-fret={marker.fret} className={`practice-note ${colorClass(marker.interval)}`}
               style={{ top: `${stringY(marker.string)}%` }}
               initial={{ left: `${markerX(marker.fret) * 100}%`, opacity: 0, scale: .92 }} animate={{ left: `${markerX(marker.fret) * 100}%`, opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: .92 }} transition={{ ...glideTransition, opacity: { duration: reduceMotion || noteMode ? 0 : .18 } }} aria-hidden="true">
