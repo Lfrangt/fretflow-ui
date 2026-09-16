@@ -24,6 +24,7 @@ import { practicePerformance, soundingMidi, midiName, notePositions, type Practi
 import { usePracticePerformance } from "./use-practice-performance";
 import { usePracticeRecording } from "./use-practice-recording";
 import { prepareAudioPlayback, resumeAudioPlayback } from "@/lib/audio-playback";
+import { attachToneRig } from "@/lib/tone-store";
 
 type NoteMarker = {
   string: number;
@@ -362,6 +363,8 @@ function ChordDiagram({ chord, degree, markers }: { chord: string; degree: strin
 export function GuitarWorkspace() {
   const { t, localize } = useLanguage();
   const audioContextRef = useRef<AudioContext | null>(null);
+  const chordToneRef = useRef<ReturnType<typeof attachToneRig> | null>(null);
+  const chordPlayGeneration = useRef(0);
   const chordVoicesRef = useRef(new Set<OscillatorNode>());
   const audioUnlockedRef = useRef(false);
   const analysisRequestRef = useRef<AbortController | null>(null);
@@ -499,7 +502,9 @@ export function GuitarWorkspace() {
     if (!AudioContextCtor) return null;
 
     prepareAudioPlayback();
+    chordToneRef.current?.dispose();
     audioContextRef.current = new AudioContextCtor();
+    chordToneRef.current = attachToneRig(audioContextRef.current);
     audioUnlockedRef.current = false;
     audioContextRef.current.onstatechange = () => {
       const state = audioContextRef.current?.state;
@@ -531,13 +536,15 @@ export function GuitarWorkspace() {
   async function playChordSound(chord: string, tone = activeTone, force = false, index = activeIndex, signal?: AbortSignal, previewShape?: NoteMarker[]) {
     if (!force && !soundEnabled) return;
     setToneStopToken(token => token + 1);
+    const generation = chordPlayGeneration.current;
 
     const context = await unlockAudioContext(signal);
     // Editing, pausing or changing chords invalidates a pending audio resume.
-    if (signal?.aborted) return;
+    if (signal?.aborted || generation !== chordPlayGeneration.current) return;
     if (!context) { setAudioBlocked(true); setIsPlaying(false); return; }
     if (context.state !== "running") return;
     setAudioBlocked(false);
+    chordToneRef.current ??= attachToneRig(context);
 
     const now = context.currentTime + 0.02;
     const chordMarkers = previewShape ?? connectedShapes[index] ?? [];
@@ -568,24 +575,36 @@ export function GuitarWorkspace() {
 
       oscillator.connect(filter);
       filter.connect(gain);
-      gain.connect(context.destination);
+      gain.connect(chordToneRef.current!.input);
       body.connect(bodyGain);
-      bodyGain.connect(context.destination);
+      bodyGain.connect(chordToneRef.current!.input);
       oscillator.start(start);
       body.start(start);
       for (const voice of [oscillator, body]) {
         chordVoicesRef.current.add(voice);
-        voice.onended = () => { chordVoicesRef.current.delete(voice); voice.disconnect(); };
+        voice.onended = () => {
+          chordVoicesRef.current.delete(voice); voice.disconnect();
+          if (voice === oscillator) { filter.disconnect(); gain.disconnect(); }
+          else bodyGain.disconnect();
+        };
       }
       oscillator.stop(start + tone.decay + 0.05);
       body.stop(start + tone.decay + 0.05);
     });
   }
 
-  useEffect(() => {
-    // Stop residual preview voices before handing sound to another transport.
+  function stopChordSound() {
+    chordPlayGeneration.current++;
     for (const voice of chordVoicesRef.current) { try { voice.stop(); } catch { /* Already ended. */ } }
     chordVoicesRef.current.clear();
+    // Muting or handing off must also silence delay/reverb tails. The next
+    // chord creates a graph with the current saved settings, never per knob.
+    chordToneRef.current?.dispose();
+    chordToneRef.current = null;
+  }
+
+  useEffect(() => {
+    stopChordSound();
   }, [performanceMode, transcriptionOpen, isPlaying, soundEnabled]);
 
   useEffect(() => {
@@ -664,6 +683,7 @@ export function GuitarWorkspace() {
   useEffect(() => {
     return () => {
       analysisRequestRef.current?.abort();
+      chordToneRef.current?.dispose();
       void audioContextRef.current?.close();
     };
   }, []);
@@ -867,7 +887,7 @@ export function GuitarWorkspace() {
 
   const panelTitles: Record<Panel, string> = {
     "chord-finder": "Find a chord", edit: "Edit progression", settings: "Practice settings", presets: "Choose a progression", import: "Import a source", "score-import": "Import an existing score", fingering: "Fingering & video reference",
-    loop: "Loop & tempo", sound: "Sound", appearance: "Appearance", key: "Key signature", chart: "Song chart", guitar: "Dream guitar", harmony: "Harmony analysis"
+    loop: "Loop & tempo", sound: "Tone Studio", appearance: "Appearance", key: "Key signature", chart: "Song chart", guitar: "Dream guitar", harmony: "Harmony analysis"
   };
   const editorChild = panel === "presets" || panel === "import";
   const settingsChild = panel !== null && ["loop", "sound", "appearance", "key", "chart", "guitar"].includes(panel);
@@ -875,7 +895,7 @@ export function GuitarWorkspace() {
   const settingsRows: { panel: Panel; icon: IconName; label: string; value: string }[] = [
     { panel: "chord-finder", icon: "key", label: "Find a chord", value: t("Choose fretboard positions") },
     { panel: "loop", icon: "loop", label: "Loop & tempo", value: `${t(loopMode === "full" ? "Full progression" : loopMode === "pair" ? "A/B pair" : "Hold chord")} · ${bpm} BPM` },
-    { panel: "sound", icon: soundEnabled ? "sound" : "muted", label: "Sound", value: t(soundEnabled ? playbackLabel : "Muted") },
+    { panel: "sound", icon: soundEnabled ? "sound" : "muted", label: "Tone Studio", value: t(soundEnabled ? playbackLabel : "Muted") },
     { panel: "appearance", icon: "appearance", label: "Appearance", value: `${t(activePalette.name)} · ${t(isFocused ? "Fretboard" : "Full guitar")}` },
     { panel: "key", icon: "key", label: "Key signature", value: `${keyChoice === "auto" ? t("Auto") + " · " : ""}${effectiveKey}` }
   ];
@@ -909,7 +929,7 @@ export function GuitarWorkspace() {
           {followsNotes ? <><span>{t("Notes")}</span>{playingMidis.length ? playingMidis.map(midi => <strong key={midi} data-midi={midi}>{midiName(midi)}</strong>) : <span>{t("Rest")}</span>}</> : <span>{t(followsOriginal ? "Play with the original recording" : "Suggested chord practice")}</span>}
         </div>
       </div> : null}
-      <div className="practice-fingering-bar"><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("chord-finder"); }}>{t("Find a chord")}</button><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("fingering"); }}>{t("Fingering & video")} · {t("Frets {min}–{max}", fretRange)}</button><small>{t(chartSteps?.[activeIndex]?.sourceShape && !(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex]) ? "Written in source score" : pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex] ? "Your chosen shape" : "Connected suggestions")}</small></div>
+      <div className="practice-fingering-bar"><button className="quiet-button tone-studio-shortcut" onClick={() => setPanel("sound")}><WorkspaceIcon name="sound" size={15} />{t("Tone Studio")}</button><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("chord-finder"); }}>{t("Find a chord")}</button><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("fingering"); }}>{t("Fingering & video")} · {t("Frets {min}–{max}", fretRange)}</button><small>{t(chartSteps?.[activeIndex]?.sourceShape && !(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex]) ? "Written in source score" : pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex] ? "Your chosen shape" : "Connected suggestions")}</small></div>
       {importedChart?.progression === progressionText && <p className="imported-score-caption">{importedChart.source !== "manual" && <>{t("From your chart")} · </>}{importedChart.title === "Imported chord chart" || importedChart.title === "Your progression" ? t(importedChart.title) : importedChart.title} · {t("Suggested practice voicings")}</p>}
       <div className="practice-chords" ref={chordStripRef} aria-label={t("Chord progression")}>
         {progression.map((chord, index) => <button key={`${chord}-${index}`} className={`${activeIndex === index ? "active" : ""} ${isInsideLoop(index) ? "in-loop" : "outside-loop"}`}
@@ -974,10 +994,10 @@ export function GuitarWorkspace() {
       </div> : null}
 
       {panel === "sound" ? <div className="settings-detail">
-        <details className="tone-guide-details"><summary>{t("Tone starting points")}</summary><ToneGuide stopToken={toneStopToken} onBeforePlay={() => { setIsPlaying(false); noteAudio.pauseNow(); originalAudio.pauseNow(); for (const voice of chordVoicesRef.current) { try { voice.stop(); } catch { /* Already ended. */ } } chordVoicesRef.current.clear(); }} /></details>
+        <ToneGuide practicePlaying={isPlaying} onPracticeToggle={togglePlayback} stopToken={toneStopToken} onBeforePlay={() => { setIsPlaying(false); noteAudio.pauseNow(); originalAudio.pauseNow(); stopChordSound(); }} />
         {performanceData ? <fieldset className="option-list"><legend>{t("Playback")}</legend>{([["original", "Original recording", "Play along with the source. Slow it down or loop a phrase."], ["notes", "Synthesized · Beta", "Hear the detected notes with our guitar sound."], ["chords", "Chord practice", "Explore suggested shapes with your own sound."]] as const).filter(([mode]) => mode === "chords" || (mode === "notes" ? performanceData.notes.length : performanceData.originalUrl)).map(([mode, name, description]) => <label key={name}><input type="radio" name="performance-mode" checked={performanceMode === mode} onChange={() => switchPlaybackMode(mode)} /><span><strong>{t(name)}</strong><small>{t(description)}</small></span></label>)}</fieldset> : null}
         <label className="toggle-row"><span><strong>{t("Guitar sound")}</strong><small>{t("Hear the chords as they move.")}</small></span><input type="checkbox" role="switch" checked={soundEnabled} onChange={event => { setSoundEnabled(event.target.checked); if (event.target.checked && !followsPerformance && !isPlaying) void playChordSound(activeChord, activeTone, true); }} /></label>
-        <fieldset className="option-list" disabled={followsPerformance}><legend>{t("Tone")}</legend>{tonePresets.map(tone => <label key={tone.id}><input type="radio" name="tone" checked={toneId === tone.id} onChange={() => { setToneId(tone.id); if (soundEnabled) void playChordSound(activeChord, tone); }} /><span><strong>{t(tone.name)}</strong></span></label>)}</fieldset>
+        <details className="tone-voice-details"><summary>{t("Guitar voice")}</summary><fieldset className="option-list" disabled={followsPerformance}><legend>{t("Guitar voice")}</legend>{tonePresets.map(tone => <label key={tone.id}><input type="radio" name="tone" checked={toneId === tone.id} onChange={() => { setToneId(tone.id); if (soundEnabled) void playChordSound(activeChord, tone); }} /><span><strong>{t(tone.name)}</strong></span></label>)}</fieldset></details>
       </div> : null}
 
       {panel === "appearance" ? <div className="settings-detail">

@@ -6,6 +6,7 @@ import { loadNotationEngine } from "@/lib/notation-engine";
 import { buildPerformanceMidi, PERFORMANCE_TICKS_PER_SECOND } from "@/lib/performance-midi";
 import { chordAtTime, soundingMidi, type PracticePerformance } from "@/lib/practice-performance";
 import { prepareAudioPlayback } from "@/lib/audio-playback";
+import { createTonePlayer } from "@/lib/tone-synth";
 
 export function usePracticePerformance(data: PracticePerformance | null, options: {
   playing: boolean; enabled: boolean; audible: boolean; bpm: number;
@@ -25,7 +26,8 @@ export function usePracticePerformance(data: PracticePerformance | null, options
     position.current = 0;
     let disposed = false;
     const abort = new AbortController();
-    // The UI facade supplies the same worker/audio-worklet output as the score.
+    // The official synth keeps the guitar samples and MIDI timing; our public
+    // output adapter routes those samples through the shared amp/effects graph.
     const host = document.createElement("div");
     host.hidden = true; document.body.append(host);
     let api: import("@coderline/alphatab").AlphaTabApi | undefined;
@@ -36,7 +38,7 @@ export function usePracticePerformance(data: PracticePerformance | null, options
         core: { scriptFile: new URL("/alphatab/alphaTab.min.js", location.href).href, fontDirectory: "/alphatab/font/", useWorkers: false },
         player: { playerMode: "disabled" }
       });
-      const raw = api.uiFacade.createWorkerPlayer();
+      const raw = createTonePlayer(engine, fail);
       if (!raw) throw new Error("No performance output");
       player.current = raw;
       raw.metronomeVolume = 0; raw.countInVolume = 0; raw.isLooping = true;

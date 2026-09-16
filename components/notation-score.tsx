@@ -5,6 +5,7 @@ import { useLanguage } from "./language-provider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadNotationEngine } from "@/lib/notation-engine";
 import { buildPerformanceMidi, PERFORMANCE_TICKS_PER_SECOND } from "@/lib/performance-midi";
+import { createTonePlayer } from "@/lib/tone-synth";
 import { NOTATION_BETA_NOTICE, seconds, type DetectedNote } from "@/lib/transcription";
 import type { AlphaTabApi, synth } from "@coderline/alphatab";
 
@@ -54,7 +55,7 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
       const api = new AlphaTabApi(host.current, {
         core: { fontDirectory: "/alphatab/font/", scriptFile: new URL("/alphatab/alphaTab.min.js", window.location.href).href, useWorkers: false, enableLazyLoading: false },
         display: { scale: .9, barsPerRow: -1 },
-        player: { playerMode: "enabledsynthesizer", soundFont: GUITAR_SOUNDFONT, enableCursor: true,
+        player: { playerMode: "disabled", soundFont: GUITAR_SOUNDFONT, enableCursor: true,
           enableUserInteraction: true, scrollElement: ".transcription-body" }
       });
       instance.current = api;
@@ -64,7 +65,7 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
       api.playerReady.on(() => setReady(true));
       api.playerStateChanged.on((e) => {
         setPlaying(e.state === 1);
-        if (e.state === 1) { performance.current?.pause(); latestPerformance.current.onBeforePlay(); }
+        if (e.state === 1) { setError(""); performance.current?.pause(); latestPerformance.current.onBeforePlay(); }
       });
       api.scoreLoaded.on((score) => {
         setScoreVersion(version => version + 1);
@@ -84,10 +85,20 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
           }
         }
       });
+      // Use the supported output interface, so both score and detected-timing
+      // playback share live amp settings without patching browser audio globals.
+      api.uiFacade.createWorkerPlayer = () => createTonePlayer(engine, () => {
+        if (!disposed) setError("Audio could not start. Tap Play to retry.");
+      });
+      api.settings.player.playerMode = engine.PlayerMode.EnabledSynthesizer;
+      api.updateSettings();
+      api.loadSoundFontFromUrl(GUITAR_SOUNDFONT, false);
       api.load(new TextEncoder().encode(latestXml.current), hasTwoTracks ? [0,1] : [0]);
       // A separate synth keeps the performance clock out of the engraved score's
       // tempo/beat lookup. Its player never shows a falsely aligned score cursor.
-      const raw = api.uiFacade.createWorkerPlayer();
+      const raw = createTonePlayer(engine, () => {
+        if (!disposed) setPerformanceError("Audio could not start. Tap Play to retry.");
+      });
       if (!raw) { setPerformanceError("Detected timing playback is unavailable."); return; }
       performance.current = raw;
       raw.metronomeVolume = 0;
@@ -137,6 +148,7 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
     const raw = performance.current;
     if (!raw?.isReadyForPlayback) return;
     if (performancePlaying) { raw.pause(); return; }
+    setPerformanceError("");
     instance.current?.pause(); onBeforePlay();
     raw.tickPosition = Math.round(Math.min(audioPosition, Math.max(0, duration - .01)) * PERFORMANCE_TICKS_PER_SECOND);
     raw.playbackSpeed = playbackSpeed;
@@ -188,7 +200,7 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
       <option value="0">{t("Both guitars")}</option>{[1,2].map(track => <option key={track} value={track}>{t("Guitar {number}", { number: track })}</option>)}
     </select><small>{t("Choose a guitar to view and hear it alone. File exports keep both tracks.")}</small></label>}
     <div className="transcription-actions">
-      <button disabled={!performanceReady || Boolean(performanceError)} onClick={playDetectedTiming}>{t(performancePlaying ? "Stop detected timing" : "Play detected timing")}</button>
+      <button disabled={!performanceReady || Boolean(performanceError && performanceError !== "Audio could not start. Tap Play to retry.")} onClick={playDetectedTiming}>{t(performancePlaying ? "Stop detected timing" : "Play detected timing")}</button>
       <small aria-label={t("Detected timing position")}>{seconds(performanceTime)}</small>
       <button disabled={!ready} onClick={() => instance.current?.playPause()}>{playing ? t("Pause score playback") : ready ? t("Play score") : t("Loading score sounds…")}</button>
       <button onClick={() => instance.current?.print()}>{t("Print / Save as PDF (Beta)")}</button>

@@ -286,7 +286,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
             requestAnimationFrame(() => notesView.current?.querySelector(`[data-note-index="${index}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
           }
         }} />}
-        {open && <details className="tone-guide-details"><summary>{t("Tone starting points")}</summary><ToneGuide stopToken={toneStopToken} onBeforePlay={() => { player.current?.pause(); setAudioPlayToken(token => token + 1); }} /></details>}
+        {open && <details className="tone-guide-details"><summary>{t("Tone Studio")}</summary><ToneGuide stopToken={toneStopToken} onBeforePlay={() => { player.current?.pause(); setAudioPlayToken(token => token + 1); }} /></details>}
         <details className="transcription-caveats"><summary>{t("What to review in this analysis")}</summary>{result.warnings.map((warning) => <p key={warning}>{localize(warning)}</p>)}</details>
         {result.chords.length > 0 && <section className="transcription-chords" ref={chordsView}><header><h3>{t("Chord chart")}</h3><div className="transcription-actions"><a href={download("chords.txt")} download>{t("Download chord chart")}</a><a href={download("chords.csv")} download>{t("Export chord table")}</a></div></header>
           <p className="transcription-accuracy">{t("Automatic chord estimates need listening review. Unclear segments are marked for review; an edited label is not a guarantee of accuracy. Inversions and extended chords may be missed.")}</p>

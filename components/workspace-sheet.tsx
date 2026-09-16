@@ -25,7 +25,7 @@ export function WorkspaceSheet({ view, title, section, onClose, onBack, children
     if (view) titleRef.current?.focus();
   }, [view]);
 
-  return <dialog ref={dialogRef} className="workspace-sheet" aria-labelledby="workspace-sheet-title"
+  return <dialog ref={dialogRef} className="workspace-sheet" data-view={view ?? undefined} aria-labelledby="workspace-sheet-title"
     onClose={onClose} onCancel={onClose}
     onClick={(event) => {
       if (event.target !== event.currentTarget) return;
