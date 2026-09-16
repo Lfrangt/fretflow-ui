@@ -10,7 +10,9 @@ See [maintenance notes](MAINTENANCE-2026-09-15.md) for the latest release verifi
   and durations before applying the chart to the existing scrolling practice strip.
 - Text bars divide the declared meter equally. Unbarred chords default to four
   quarter-note beats. These assumptions are disclosed; `C:2` gives an explicit
-  two-beat duration. N.C. stays silent. Unsupported text repeats/transposition
+  two-beat duration. N.C. stops the previous synthesized chord and its effect
+  tails; the next chord resumes with the current tone settings. Original-recording
+  playback is unaffected. Unsupported text repeats/transposition
   require explicit written chords. PDF/image recognition is not connected.
 - Structured scores use explicit chord symbols, one selected staff and alphaTab's
   expanded playback order. A note-only score is rejected, not harmonized by guesswork.

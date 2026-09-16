@@ -536,6 +536,9 @@ export function GuitarWorkspace() {
   async function playChordSound(chord: string, tone = activeTone, force = false, index = activeIndex, signal?: AbortSignal, previewShape?: NoteMarker[]) {
     if (!force && !soundEnabled) return;
     setToneStopToken(token => token + 1);
+    // A rest also damps the previous chord and its delay/reverb tails, including
+    // any chord still waiting for the browser's audio context to resume.
+    if (chord === "N.C.") { stopChordSound(); return; }
     const generation = chordPlayGeneration.current;
 
     const context = await unlockAudioContext(signal);
