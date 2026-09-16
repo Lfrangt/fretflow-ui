@@ -79,6 +79,30 @@ def test_midi_contains_detected_notes_and_separate_theoretical_chords(client):
     assert 'theoretical' in chords.instruments[0].name
 
 
+def test_manual_track_assignments_roundtrip_and_invalid_batches_are_atomic(client):
+    import xml.etree.ElementTree as ET
+    job = completed_job()
+    job.result['notes'].append({'start': .2, 'end': .9, 'midi': 64, 'activation': .8})
+    bad = client.patch(f'/api/jobs/{job.id}', json={'revision': 0, 'note_tracks': {'indices': [0, 99], 'track': 2}})
+    assert bad.status_code == 422 and job.result['revision'] == 0
+    assert 'track' not in job.result['notes'][0]
+    for payload in [{'indices': [0], 'track': 3}, {'indices': [], 'track': 2}, {'indices': [-1], 'track': 1}]:
+        assert client.patch(f'/api/jobs/{job.id}', json={'revision': 0, 'note_tracks': payload}).status_code == 422
+    response = client.patch(f'/api/jobs/{job.id}', json={'revision': 0, 'note_tracks': {'indices': [1], 'track': 2}})
+    assert response.status_code == 200
+    saved = json.loads((job.folder/'result.json').read_text())
+    assert saved['notes'][1]['track'] == 2 and saved['notes'][1]['track_edited']
+    # A later pitch edit from an older client must not erase the track.
+    response = client.patch(f'/api/jobs/{job.id}', json={'revision': 1, 'note': {'index': 1, 'midi': 65, 'start': .2, 'end': .9}})
+    assert response.json()['notes'][1]['track'] == 2
+    midi = pretty_midi.PrettyMIDI(io.BytesIO(client.get(f'/api/jobs/{job.id}/export/notes.mid').content))
+    assert [[n.pitch for n in instrument.notes] for instrument in midi.instruments] == [[60], [65]]
+    assert [i.name.split(' - ')[0] for i in midi.instruments] == ['Guitar 1', 'Guitar 2']
+    xml = ET.fromstring(client.get(f'/api/jobs/{job.id}/export/score.musicxml').content)
+    assert len(xml.findall('part')) == 2
+    assert client.patch(f'/api/jobs/{job.id}', json={'revision': 0, 'note_tracks': {'indices': [0], 'track': 2}}).status_code == 409
+
+
 def test_chord_chart_exports_preserve_estimates_and_unknown_segments(client):
     job = completed_job()
     job.result['chords'].append({**chord_info('X'), 'start': .8, 'end': 1., 'roman': '?', 'function': '', 'review': True, 'edited': False, 'original_raw': 'X'})

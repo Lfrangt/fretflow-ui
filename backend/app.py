@@ -313,6 +313,7 @@ def health():
     from .vocal_removal import vocal_model
     from .runtime import model_threads
     return {"status": "ok", "local": not hosting.enabled(), "max_duration": MAX_DURATION, "max_bytes": MAX_BYTES,
+            "features": {"note_tracks": True},
             "engines": {"chordmini": CHECKPOINT.is_file(), "basic_pitch": importlib.util.find_spec("basic_pitch") is not None, "demucs": separation_available(), "vocal_removal": vocal_removal_available()},
             "loaded": {"chordmini": bool(chord_model.cache_info().currsize), "basic_pitch": bool(pitch_model.cache_info().currsize), "vocal_removal": bool(vocal_model.cache_info().currsize)},
             "model_threads": model_threads()}
@@ -534,6 +535,12 @@ class NoteEdit(BaseModel):
     start: float = Field(ge=0)
     end: float = Field(gt=0)
     excluded: bool = False
+    track: Literal[1, 2] | None = None
+
+
+class NoteTracks(BaseModel):
+    indices: list[int] = Field(min_length=1, max_length=1000)
+    track: Literal[1, 2]
 
 
 class Edits(BaseModel):
@@ -541,6 +548,7 @@ class Edits(BaseModel):
     chord: ChordEdit | None = None
     key: KeyEdit | None = None
     note: NoteEdit | None = None
+    note_tracks: NoteTracks | None = None
     score_settings: ScoreSettings | None = None
 
 
@@ -574,6 +582,8 @@ def edit(id: str, data: Edits):
                 raise HTTPException(422, "音符结束须晚于开始，且在片段时长以内。")
             updated = {"midi": note.midi, "name": f"{PITCHES[note.midi % 12]}{note.midi // 12 - 1}",
                        "start": note.start, "end": note.end, "excluded": note.excluded, "edited": True}
+            if note.track is not None:
+                updated["track"] = note.track
             if note.index is None:
                 result["notes"].append({**updated, "activation": 1., "bends": [], "added": True})
             elif note.index < len(result["notes"]):
@@ -582,6 +592,13 @@ def edit(id: str, data: Edits):
                 original.update(updated)
             else:
                 raise HTTPException(422, "音符不存在。")
+        if data.note_tracks:
+            indices = data.note_tracks.indices
+            if any(index < 0 or index >= len(result["notes"]) for index in indices):
+                raise HTTPException(422, "Note selection is no longer valid. Reopen the record.")
+            for index in set(indices):
+                result["notes"][index]["track"] = data.note_tracks.track
+                result["notes"][index]["track_edited"] = True
         result["revision"] += 1
         job.result = enrich(result)
         save_result(job)
@@ -638,10 +655,15 @@ def export(id: str, kind: Literal["json", "chords.csv", "chords.txt", "notes.mid
         if kind == "notes.mid":
             if not result["notes"]:
                 raise HTTPException(422, "没有可导出的音符")
+            instruments = {}
             for note in result["notes"]:
                 if note.get("excluded"):
                     continue
-                instrument.notes.append(pretty_midi.Note(max(1, min(127, round(note["activation"]*127))), note["midi"], note["start"], note["end"]))
+                track = note.get("track", 1)
+                if track not in instruments:
+                    instruments[track] = pretty_midi.Instrument(program=24, name=f"Guitar {track} - Beta; reference only")
+                instruments[track].notes.append(pretty_midi.Note(max(1, min(127, round(note["activation"]*127))), note["midi"], note["start"], note["end"]))
+            midi.instruments.extend(instruments[track] for track in sorted(instruments))
         else:
             for chord in result["chords"]:
                 if chord["root"] is None:
@@ -652,7 +674,8 @@ def export(id: str, kind: Literal["json", "chords.csv", "chords.txt", "notes.mid
                     instrument.notes.append(pretty_midi.Note(85, 36+PITCHES.index(chord["bass"]), chord["start"], chord["end"]))
             if not instrument.notes:
                 raise HTTPException(422, "没有可导出的和弦")
-        midi.instruments.append(instrument)
+        if kind != "notes.mid":
+            midi.instruments.append(instrument)
         output = io.BytesIO()
         midi.write(output)
         content, mime = output.getvalue(), "audio/midi"

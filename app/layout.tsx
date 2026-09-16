@@ -8,6 +8,7 @@ import "./practice-workspace.css";
 import "./transcription.css";
 import "./language.css";
 import "./mobile-practice.css";
+import "./chord-finder.css";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 

@@ -14,7 +14,7 @@ export function ChordThumbnail({ chord, markers }: { chord: string; markers: Mar
   const base = lowest;
   const rows = Math.max(4, highest - base + 1);
   return <svg className="chord-thumbnail" viewBox="0 0 116 112" role="img" aria-label={t("{chord} fingering diagram", { chord })}>
-    <title>{markers.map(marker => marker.fret > 0 ? t("String {string}, fret {fret}, finger {finger}", marker) : t("String {string}, open", marker)).join("; ")}</title>
+    <title>{markers.map(marker => marker.fret > 0 ? t(marker.finger ? "String {string}, fret {fret}, finger {finger}" : "String {string}, fret {fret}", marker) : t("String {string}, open", marker)).join("; ")}</title>
     {Array.from({ length: 6 }, (_, index) => {
       const marker = markers.find(note => note.string === 6 - index);
       return <g key={index}>

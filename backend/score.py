@@ -115,7 +115,7 @@ def assign_notes(result, settings):
     return assigned, sorted(set(omitted)), shortened, tick_seconds
 
 
-def build_score(result):
+def _build_single_score(result):
     settings = defaults(result)
     assigned, omitted, shortened, tick_seconds = assign_notes(result, settings)
     beats = int(settings["meter"][0])
@@ -224,3 +224,35 @@ def build_score(result):
     return {"musicxml": ET.tostring(root, encoding="utf-8", xml_declaration=True).decode(),
             "settings": settings, "notices": notices, "assigned_count": len(assigned),
             "omitted_indices": omitted, "bar_count": bars}
+
+
+def build_score(result):
+    """Keep human-assigned guitars independent, including fingering and sustains."""
+    if not any(note.get("track", 1) == 2 for note in result["notes"]):
+        return _build_single_score(result)
+    drafts = []
+    for track in (1, 2):
+        scoped = {**result, "notes": [{**note, "excluded": note.get("excluded", False) or note.get("track", 1) != track}
+                                     for note in result["notes"]]}
+        if track == 2:
+            scoped["chords"] = []  # The shared harmony belongs to the score, not an inferred second guitar.
+        draft = _build_single_score(scoped)
+        root = ET.fromstring(draft["musicxml"])
+        definition = root.find("part-list/score-part")
+        definition.set("id", f"P{track}")
+        definition.find("part-name").text = f"Guitar {track}"
+        for node in definition.findall("score-instrument") + definition.findall("midi-instrument"):
+            node.set("id", f"I{track}")
+        definition.find("midi-instrument/midi-channel").text = str(track)
+        root.find("part").set("id", f"P{track}")
+        drafts.append((draft, root))
+    draft, root = drafts[0]
+    second, second_root = drafts[1]
+    root.find("part-list").append(second_root.find("part-list/score-part"))
+    root.append(second_root.find("part"))
+    draft["musicxml"] = ET.tostring(root, encoding="utf-8", xml_declaration=True).decode()
+    draft["assigned_count"] += second["assigned_count"]
+    draft["omitted_indices"] = sorted(draft["omitted_indices"] + second["omitted_indices"])
+    draft["notices"] = ["Manual guitar assignments are preserved in separate score and MIDI tracks; this does not separate the source audio."] + [
+        f"Guitar {track}: {notice}" for track, (item, _) in enumerate(drafts, 1) for notice in item["notices"]]
+    return draft

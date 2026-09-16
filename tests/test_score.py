@@ -87,3 +87,21 @@ def test_high_preference_keeps_low_basses_and_capo_drop_d_pitches():
     assert assigned[0]["fret"] == 0
     for n in assigned:
         assert TUNINGS["drop-d"][n["string"] - 1] + 2 + n["fret"] == n["midi"]
+
+
+def test_two_guitars_keep_independent_unison_sustains_and_global_omission_indices():
+    data = result([(0, 3, 40), (1, 2, 40), (0, 1, 120), (0, 1, 10)])
+    data['notes'][1]['track'] = 2
+    data['notes'][3]['track'] = 2
+    draft = build_score(data)
+    xml = ET.fromstring(draft['musicxml'])
+    assert [p.findtext('part-name') for p in xml.findall('part-list/score-part')] == ['Guitar 1', 'Guitar 2']
+    assert [p.get('id') for p in xml.findall('part')] == ['P1', 'P2']
+    assert [p.findtext('midi-instrument/midi-channel') for p in xml.findall('part-list/score-part')] == ['1', '2']
+    assert draft['omitted_indices'] == [2, 3]
+    assert draft['assigned_count'] == 2
+    assert 'does not separate' in draft['notices'][0]
+    for part, expected_ticks in zip(xml.findall('part'), [24, 8]):
+        assert sum(int(n.findtext('duration')) for n in part.findall('.//note') if n.find('pitch') is not None) == expected_ticks
+        for measure in part.findall('measure'):
+            assert sum(int(n.findtext('duration')) for n in measure.findall('note') if n.find('chord') is None) == 16

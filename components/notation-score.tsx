@@ -2,7 +2,7 @@
 
 import { useLanguage } from "./language-provider";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadNotationEngine } from "@/lib/notation-engine";
 import { buildPerformanceMidi, PERFORMANCE_TICKS_PER_SECOND } from "@/lib/performance-midi";
 import { NOTATION_BETA_NOTICE, seconds, type DetectedNote } from "@/lib/transcription";
@@ -17,12 +17,17 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
   playbackSpeed: number; audioPlayToken: number; onBeforePlay: () => void;
 }) {
   const { t, localize } = useLanguage();
+  const [soloTrack, setSoloTrack] = useState(0);
+  const [scoreVersion, setScoreVersion] = useState(0);
+  const hasTwoTracks = notes.some(note => note.track === 2);
+  const activeTrack = hasTwoTracks ? soloTrack : 0;
+  const playbackNotes = useMemo(() => activeTrack ? notes.filter(note => (note.track ?? 1) === activeTrack) : notes, [notes, activeTrack]);
   const host = useRef<HTMLDivElement>(null);
   const instance = useRef<AlphaTabApi | null>(null);
   const performance = useRef<synth.IAlphaSynth | null>(null);
   const engineRef = useRef<Awaited<ReturnType<typeof loadNotationEngine>> | null>(null);
-  const latestPerformance = useRef({ notes, duration, audioPosition, playbackSpeed, onBeforePlay });
-  latestPerformance.current = { notes, duration, audioPosition, playbackSpeed, onBeforePlay };
+  const latestPerformance = useRef({ notes: playbackNotes, duration, audioPosition, playbackSpeed, onBeforePlay });
+  latestPerformance.current = { notes: playbackNotes, duration, audioPosition, playbackSpeed, onBeforePlay };
   const latestXml = useRef(musicxml);
   latestXml.current = musicxml;
   const betaCopy = useRef({ subtitle: t("Beta · notes may be inaccurate · for reference only"), notice: t(NOTATION_BETA_NOTICE) });
@@ -62,6 +67,7 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
         if (e.state === 1) { performance.current?.pause(); latestPerformance.current.onBeforePlay(); }
       });
       api.scoreLoaded.on((score) => {
+        setScoreVersion(version => version + 1);
         // These fields travel with alphaTab's print/PDF and Guitar Pro exports.
         score.subTitle = betaCopy.current.subtitle;
         score.notices = betaCopy.current.notice;
@@ -78,7 +84,7 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
           }
         }
       });
-      api.load(new TextEncoder().encode(latestXml.current));
+      api.load(new TextEncoder().encode(latestXml.current), hasTwoTracks ? [0,1] : [0]);
       // A separate synth keeps the performance clock out of the engraved score's
       // tempo/beat lookup. Its player never shows a falsely aligned score cursor.
       const raw = api.uiFacade.createWorkerPlayer();
@@ -120,9 +126,9 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
     const raw = performance.current;
     if (!raw?.isReady || !engineRef.current) return;
     raw.stop(); setPerformanceReady(false); setPerformanceError("");
-    try { raw.loadMidiFile(buildPerformanceMidi(engineRef.current, notes, duration)); }
+    try { raw.loadMidiFile(buildPerformanceMidi(engineRef.current, playbackNotes, duration)); }
     catch { setPerformanceError("Detected timing playback is unavailable."); }
-  }, [notes, duration]);
+  }, [playbackNotes, duration]);
 
   useEffect(() => { if (performance.current) performance.current.playbackSpeed = playbackSpeed; }, [playbackSpeed]);
   useEffect(() => { performance.current?.pause(); instance.current?.pause(); }, [audioPlayToken]);
@@ -142,8 +148,19 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
     if (!api) return;
     api.stop();
     setError("");
-    api.load(new TextEncoder().encode(musicxml));
-  }, [musicxml]);
+    api.load(new TextEncoder().encode(musicxml), hasTwoTracks ? [0,1] : [0]);
+  }, [musicxml, hasTwoTracks]);
+
+  useEffect(() => {
+    const api = instance.current;
+    if (!api?.score) return;
+    api.pause();
+    const tracks = api.score.tracks;
+    const shown = activeTrack ? tracks.filter(track => track.index === activeTrack - 1) : tracks;
+    api.changeTrackSolo(tracks, false);
+    if (activeTrack) api.changeTrackSolo(shown, true);
+    api.renderTracks(shown);
+  }, [activeTrack, scoreVersion]);
 
   useEffect(() => {
     const api = instance.current;
@@ -167,6 +184,9 @@ export function NotationScore({ musicxml, name, notes, duration, audioPosition, 
   }
 
   return <section className="notation-panel" aria-label={t("Guitar score")}>
+    {hasTwoTracks && <label className="notation-track-picker">{t("Guitar track")}<select aria-label={t("Score and playback track")} value={activeTrack} onChange={event => setSoloTrack(Number(event.target.value))}>
+      <option value="0">{t("Both guitars")}</option>{[1,2].map(track => <option key={track} value={track}>{t("Guitar {number}", { number: track })}</option>)}
+    </select><small>{t("Choose a guitar to view and hear it alone. File exports keep both tracks.")}</small></label>}
     <div className="transcription-actions">
       <button disabled={!performanceReady || Boolean(performanceError)} onClick={playDetectedTiming}>{t(performancePlaying ? "Stop detected timing" : "Play detected timing")}</button>
       <small aria-label={t("Detected timing position")}>{seconds(performanceTime)}</small>

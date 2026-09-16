@@ -1,0 +1,32 @@
+.chord-finder { display: grid; gap: 18px; }
+.finder-position { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+.finder-position select { max-width: 180px; padding: 8px; border: 1px solid var(--hairline); border-radius: 8px; background: #fff9; }
+.finder-board { padding: 8px; border: 1px solid var(--hairline); border-radius: 14px; background: #e9d9c322; }
+.finder-ruler, .finder-string { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.finder-ruler { padding: 6px 0; text-align: center; color: #746a61; font-size: 12px; }
+.finder-string { position: relative; padding: 3px 0; }
+.finder-string::before { content: ""; position: absolute; left: 15%; right: 3%; top: 50%; height: 1px; background: #93857966; }
+.finder-string button { position: relative; height: 42px; min-width: 0; padding: 0; border: 1px solid #96806b33; border-radius: 8px; background: #faf7f0c9; color: #675548; font-size: 13px; }
+.finder-string button[aria-pressed="true"], .finder-matches button[aria-pressed="true"] { color: #fff; background: #574639; border-color: #574639; }
+.finder-string button:focus-visible, .finder-matches button:focus-visible { outline: 3px solid #b47440; outline-offset: 2px; }
+.finder-result { padding: 18px; border: 1px solid var(--hairline); border-radius: 14px; background: #fff7; }
+.finder-result > strong { font-size: 28px; }
+.finder-result small { display: block; margin-top: 12px; color: #746a61; }
+.finder-matches, .finder-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.finder-matches button { padding: 8px 12px; border: 1px solid var(--hairline); border-radius: 20px; background: transparent; }
+.practice-fingering-bar { flex-wrap: wrap; }
+
+.tone-guide-details { padding: 16px; border: 1px solid var(--hairline); border-radius: 14px; margin-block: 16px; }
+.tone-guide-details > summary { cursor: pointer; font-weight: 600; }
+.tone-guide { display: grid; gap: 16px; margin-top: 16px; }
+.tone-starts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tone-starts button { border: 1px solid var(--hairline); padding: 9px 12px; border-radius: 18px; background: transparent; color: inherit; }
+.tone-starts button[aria-pressed="true"] { background: #574639; color: white; }
+.tone-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.tone-controls label { display: grid; gap: 8px; min-width: 0; }
+.tone-controls label > span { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 13px; }
+.tone-controls output { font-variant-numeric: tabular-nums; color: #746a61; }
+.tone-controls input { width: 100%; min-width: 0; accent-color: #574639; }
+.tone-guide small { color: #746a61; font-size: 12px; line-height: 1.6; }
+.tone-guide > a { font-size: 12px; color: #675548; text-underline-offset: 3px; }
+@media (max-width: 480px) { .tone-controls { grid-template-columns: 1fr; } }

@@ -9,6 +9,7 @@ export type Separation = { enabled: boolean; mode?: "none" | "guitar" | "instrum
 export type DetectedNote = {
   start: number; end: number; midi: number; name: string; activation: number;
   velocity?: number;
+  track?: 1 | 2; track_edited?: boolean;
   excluded?: boolean; edited?: boolean; added?: boolean;
 };
 export type DetectedChord = {

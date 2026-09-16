@@ -8,6 +8,8 @@ import { dreamGuitars } from "@/lib/dream-guitars";
 import { rightHandedStringPosition } from "@/lib/guitar-layout";
 import { MediaTranscription } from "./media-transcription";
 import { TestFeedback } from "./test-feedback";
+import { ToneGuide } from "./tone-guide";
+import { ChordFinder } from "./chord-finder";
 import { ScoreImport } from "./score-import";
 import type { ImportedChart } from "@/lib/score-import";
 import { FingeringPanel } from "./fingering-panel";
@@ -32,7 +34,7 @@ type NoteMarker = {
 
 type LoopMode = "full" | "pair" | "hold";
 type InputMode = "chart" | "audio";
-type Panel = "edit" | "settings" | "presets" | "import" | "score-import" | "fingering" | "loop" | "sound" | "appearance" | "key" | "chart" | "guitar" | "harmony";
+type Panel = "chord-finder" | "edit" | "settings" | "presets" | "import" | "score-import" | "fingering" | "loop" | "sound" | "appearance" | "key" | "chart" | "guitar" | "harmony";
 type AnalysisState = "idle" | "analyzing" | "ready" | "error";
 
 type TonePreset = {
@@ -383,9 +385,11 @@ export function GuitarWorkspace() {
   const [transcriptionOpen, setTranscriptionOpen] = useState(false);
   const [importedHarmony, setImportedHarmony] = useState<{ progression: string; key: string; degrees: string[] } | null>(null);
   const [importedTiming, setImportedTiming] = useState<{ progression: string; beats: number[] } | null>(null);
-  const [importedChart, setImportedChart] = useState<{ progression: string; title: string; steps: ImportedChart["steps"] } | null>(null);
+  const [importedChart, setImportedChart] = useState<{ progression: string; title: string; steps: ImportedChart["steps"]; source: ImportedChart["source"] } | null>(null);
   const [fretRange, setFretRange] = useState<FretRange>(PRACTICE_RANGE);
   const [pinnedShapes, setPinnedShapes] = useState<{ progression: string; shapes: Record<number, NoteMarker[]> }>({ progression: "", shapes: {} });
+  const [finderShape, setFinderShape] = useState<NoteMarker[]>([]);
+  const [toneStopToken, setToneStopToken] = useState(0);
   const [referenceVideo, setReferenceVideo] = useState<File | null>(null);
   useEffect(() => {
     try { const saved = JSON.parse(localStorage.getItem("fretflow-fret-range") || "null");
@@ -524,8 +528,9 @@ export function GuitarWorkspace() {
     return context;
   }
 
-  async function playChordSound(chord: string, tone = activeTone, force = false, index = activeIndex, signal?: AbortSignal) {
+  async function playChordSound(chord: string, tone = activeTone, force = false, index = activeIndex, signal?: AbortSignal, previewShape?: NoteMarker[]) {
     if (!force && !soundEnabled) return;
+    setToneStopToken(token => token + 1);
 
     const context = await unlockAudioContext(signal);
     // Editing, pausing or changing chords invalidates a pending audio resume.
@@ -535,7 +540,7 @@ export function GuitarWorkspace() {
     setAudioBlocked(false);
 
     const now = context.currentTime + 0.02;
-    const chordMarkers = connectedShapes[index] ?? [];
+    const chordMarkers = previewShape ?? connectedShapes[index] ?? [];
 
     chordMarkers.forEach((marker, index) => {
       const midi = openStringMidi[marker.string] + marker.fret;
@@ -696,6 +701,7 @@ export function GuitarWorkspace() {
   function togglePlayback() {
     if (followsPerformance && !performanceAudio.ready) return;
     if (!isPlaying) {
+      setToneStopToken(token => token + 1);
       setAudioBlocked(false);
       prepareAudioPlayback();
       // Start the selected output while this click still has user activation.
@@ -771,7 +777,7 @@ export function GuitarWorkspace() {
     setIsPlaying(false); setProgressionText(text); setActivePresetId(null);
     setImportedHarmony(null); setKeyChoice("auto");
     setImportedPerformance(null); setPerformanceMode("chords"); setPlayingMidis([]);
-    setImportedChart({ progression: text, title: chart.title, steps: chart.steps });
+    setImportedChart({ progression: text, title: chart.title, steps: chart.steps, source: chart.source });
     setPinnedShapes({ progression: text, shapes: {} });
     setImportedTiming({ progression: text, beats: chart.steps.map(step => step.beats) });
     setBpm(chart.bpm); setLoopMode("full"); setActiveIndex(0); setLoopStart(0);
@@ -860,13 +866,14 @@ export function GuitarWorkspace() {
   }
 
   const panelTitles: Record<Panel, string> = {
-    edit: "Edit progression", settings: "Practice settings", presets: "Choose a progression", import: "Import a source", "score-import": "Import an existing score", fingering: "Fingering & video reference",
+    "chord-finder": "Find a chord", edit: "Edit progression", settings: "Practice settings", presets: "Choose a progression", import: "Import a source", "score-import": "Import an existing score", fingering: "Fingering & video reference",
     loop: "Loop & tempo", sound: "Sound", appearance: "Appearance", key: "Key signature", chart: "Song chart", guitar: "Dream guitar", harmony: "Harmony analysis"
   };
   const editorChild = panel === "presets" || panel === "import";
   const settingsChild = panel !== null && ["loop", "sound", "appearance", "key", "chart", "guitar"].includes(panel);
   const panelParent = editorChild ? "Edit progression" : settingsChild ? "Practice settings" : "FretFlow";
   const settingsRows: { panel: Panel; icon: IconName; label: string; value: string }[] = [
+    { panel: "chord-finder", icon: "key", label: "Find a chord", value: t("Choose fretboard positions") },
     { panel: "loop", icon: "loop", label: "Loop & tempo", value: `${t(loopMode === "full" ? "Full progression" : loopMode === "pair" ? "A/B pair" : "Hold chord")} · ${bpm} BPM` },
     { panel: "sound", icon: soundEnabled ? "sound" : "muted", label: "Sound", value: t(soundEnabled ? playbackLabel : "Muted") },
     { panel: "appearance", icon: "appearance", label: "Appearance", value: `${t(activePalette.name)} · ${t(isFocused ? "Fretboard" : "Full guitar")}` },
@@ -902,8 +909,8 @@ export function GuitarWorkspace() {
           {followsNotes ? <><span>{t("Notes")}</span>{playingMidis.length ? playingMidis.map(midi => <strong key={midi} data-midi={midi}>{midiName(midi)}</strong>) : <span>{t("Rest")}</span>}</> : <span>{t(followsOriginal ? "Play with the original recording" : "Suggested chord practice")}</span>}
         </div>
       </div> : null}
-      <div className="practice-fingering-bar"><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("fingering"); }}>{t("Fingering & video")} · {t("Frets {min}–{max}", fretRange)}</button><small>{t(chartSteps?.[activeIndex]?.sourceShape && !(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex]) ? "Written in source score" : pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex] ? "Your chosen shape" : "Connected suggestions")}</small></div>
-      {importedChart?.progression === progressionText && <p className="imported-score-caption">{t("From your chart")} · {importedChart.title === "Imported chord chart" ? t("Imported chord chart") : importedChart.title} · {t("Suggested practice voicings")}</p>}
+      <div className="practice-fingering-bar"><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("chord-finder"); }}>{t("Find a chord")}</button><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("fingering"); }}>{t("Fingering & video")} · {t("Frets {min}–{max}", fretRange)}</button><small>{t(chartSteps?.[activeIndex]?.sourceShape && !(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex]) ? "Written in source score" : pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex] ? "Your chosen shape" : "Connected suggestions")}</small></div>
+      {importedChart?.progression === progressionText && <p className="imported-score-caption">{importedChart.source !== "manual" && <>{t("From your chart")} · </>}{importedChart.title === "Imported chord chart" || importedChart.title === "Your progression" ? t(importedChart.title) : importedChart.title} · {t("Suggested practice voicings")}</p>}
       <div className="practice-chords" ref={chordStripRef} aria-label={t("Chord progression")}>
         {progression.map((chord, index) => <button key={`${chord}-${index}`} className={`${activeIndex === index ? "active" : ""} ${isInsideLoop(index) ? "in-loop" : "outside-loop"}`}
           ref={activeIndex === index ? activeChordRef : null}
@@ -967,6 +974,7 @@ export function GuitarWorkspace() {
       </div> : null}
 
       {panel === "sound" ? <div className="settings-detail">
+        <details className="tone-guide-details"><summary>{t("Tone starting points")}</summary><ToneGuide stopToken={toneStopToken} onBeforePlay={() => { setIsPlaying(false); noteAudio.pauseNow(); originalAudio.pauseNow(); for (const voice of chordVoicesRef.current) { try { voice.stop(); } catch { /* Already ended. */ } } chordVoicesRef.current.clear(); }} /></details>
         {performanceData ? <fieldset className="option-list"><legend>{t("Playback")}</legend>{([["original", "Original recording", "Play along with the source. Slow it down or loop a phrase."], ["notes", "Synthesized · Beta", "Hear the detected notes with our guitar sound."], ["chords", "Chord practice", "Explore suggested shapes with your own sound."]] as const).filter(([mode]) => mode === "chords" || (mode === "notes" ? performanceData.notes.length : performanceData.originalUrl)).map(([mode, name, description]) => <label key={name}><input type="radio" name="performance-mode" checked={performanceMode === mode} onChange={() => switchPlaybackMode(mode)} /><span><strong>{t(name)}</strong><small>{t(description)}</small></span></label>)}</fieldset> : null}
         <label className="toggle-row"><span><strong>{t("Guitar sound")}</strong><small>{t("Hear the chords as they move.")}</small></span><input type="checkbox" role="switch" checked={soundEnabled} onChange={event => { setSoundEnabled(event.target.checked); if (event.target.checked && !followsPerformance && !isPlaying) void playChordSound(activeChord, activeTone, true); }} /></label>
         <fieldset className="option-list" disabled={followsPerformance}><legend>{t("Tone")}</legend>{tonePresets.map(tone => <label key={tone.id}><input type="radio" name="tone" checked={toneId === tone.id} onChange={() => { setToneId(tone.id); if (soundEnabled) void playChordSound(activeChord, tone); }} /><span><strong>{t(tone.name)}</strong></span></label>)}</fieldset>
@@ -999,6 +1007,20 @@ export function GuitarWorkspace() {
         pinned={Boolean(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex])}
         onReset={() => setPinnedShapes(previous => { const shapes = { ...previous.shapes }; delete shapes[activeIndex]; return { ...previous, shapes }; })}
         sourceShape={chartSteps?.[activeIndex]?.sourceShape} videoFile={referenceVideo} onVideo={setReferenceVideo} chordTime={chordReferenceTime} /> : null}
+      {panel === "chord-finder" ? <ChordFinder shape={finderShape} onChange={setFinderShape}
+        onPreview={shape => { void playChordSound("", activeTone, true, activeIndex, undefined, shape); }}
+        onAdd={(chord, shape) => {
+          // Carry existing durations and chosen shapes into the extended chart.
+          // Appending ends the recording-linked transport, whose timeline has no new step.
+          const steps = progression.map((chord, index) => ({ chord, beats: importedTiming?.progression === progressionText ? importedTiming.beats[index] ?? 2 : 2,
+            section: chartSteps?.[index]?.section ?? "", sourceShape: chartSteps?.[index]?.sourceShape }));
+          steps.push({ chord, beats: 4, section: "", sourceShape: undefined });
+          useImportedChart({ title: importedChart?.progression === progressionText ? importedChart.title : "Your progression", steps, bpm, source: "manual", notices: [] });
+          setKeyChoice(keyChoice);
+          setPinnedShapes({ progression: steps.map(step => canonicalChordLabel(step.chord)).join("  "),
+            shapes: Object.fromEntries([...connectedShapes, shape].map((markers, index) => [index, markers])) });
+          setActiveIndex(steps.length - 1);
+        }} /> : null}
       {panel === "score-import" ? <ScoreImport bpm={bpm} markersFor={chord => voicingCandidates(chord, fretRange, voicings[chord] ?? [])[0] ?? []} onUse={useImportedChart} /> : null}
       {panel === "import" ? <div className="settings-detail">
         <button className="action-button full-width" onClick={() => setPanel("score-import")}>{t("Import an existing score")}<WorkspaceIcon name="import" size={16} /></button>

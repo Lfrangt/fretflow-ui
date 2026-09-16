@@ -132,3 +132,6 @@
 @media(max-width: 950px) { .transcription-intro { flex-direction: column; align-items: flex-start; gap: 20px; } .transcription-journey { gap: 32px; } .transcription-result-nav small { display: none; } }
 @media(max-width: 700px) { .transcription-header { padding: 20px; } .transcription-header h2 { font-size: 22px; } .transcription-header .soft-button { font-size: 11px; white-space: nowrap; } .transcription-lead { font-size: 15px; } .transcription-journey b { display: inline; margin-right: 4px; } .media-range summary span { margin-left: 8px; } }
 @media(prefers-reduced-motion: reduce) { .transcription-body { scroll-behavior: auto; } }
+
+.note-row input[type="checkbox"] { width: 18px; height: 18px; }
+.notation-track-picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0; }

@@ -25,6 +25,8 @@ export function translate(locale: Locale, source: string, values: Values = {}): 
 
 export function localizeResult(locale: Locale, source: string): string {
   if (source.startsWith("Error: ")) return `${translate(locale, "Error")}: ${localizeResult(locale, source.slice(7))}`;
+  const guitarNotice = /^Guitar ([12]): (.+)$/.exec(source);
+  if (guitarNotice) return `${translate(locale, "Guitar {number}", { number: guitarNotice[1] })}: ${localizeResult(locale, guitarNotice[2])}`;
   const exact = translate(locale, source);
   if (exact !== source || locale === "zh") return exact;
   // Legacy worker key labels and count notices are not translation keys.

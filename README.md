@@ -10,10 +10,13 @@ This repository includes the current web app, the separately hosted Python analy
 
 - Practice chord progressions with animated interval labels, Roman numerals and connected voicings.
 - Edit chords, choose a fret range, pin fingerings, slow playback and loop a progression or pair of chords.
+- Click fretboard positions to find possible chord names, audition the shape and add it to practice.
+- Explore four electric-guitar tone starting points with gain, EQ, delay and reverb controls and a synthesized comparison phrase. These are manual references, not automatic tone recognition.
 - Use the mobile layout and Focus mode; switch English / 中文 without clearing your work.
 - Import text, ChordPro, MusicXML/MXL or Guitar Pro chord symbols for practice.
 - Analyze an uploaded video/audio clip with ChordMini and Basic Pitch; optionally remove vocals or isolate guitar with Demucs.
 - Review and edit results, compare original and simulated playback, and export PDF chord charts or Beta notation, chord TXT/CSV, MIDI, MusicXML and Guitar Pro files.
+- Manually assign detected notes to Guitar 1 / Guitar 2, view and audition either part, and export separate instrument tracks in MIDI, MusicXML and Guitar Pro. This does not separate two guitars in mixed audio.
 
 ## Run the web app
 

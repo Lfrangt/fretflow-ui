@@ -3,7 +3,7 @@ import type { model } from "@coderline/alphatab";
 
 type Engine = typeof import("@coderline/alphatab");
 export type ChartStep = { chord: string; beats: number; section: string; bar?: number; sourceShape?: GuitarMarker[] };
-export type ImportedChart = { title: string; steps: ChartStep[]; bpm: number; notices: string[]; source: "text" | "score" };
+export type ImportedChart = { title: string; steps: ChartStep[]; bpm: number; notices: string[]; source: "text" | "score" | "manual" };
 export const MAX_CHART_STEPS = 1000;
 
 export function chartChord(value: string): string {

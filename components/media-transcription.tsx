@@ -1,5 +1,6 @@
 "use client";
 
+import { ToneGuide } from "./tone-guide";
 import { TestFeedback } from "./test-feedback";
 
 import { useLanguage, LanguageSwitcher } from "./language-provider";
@@ -38,9 +39,12 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   const [separation, setSeparation] = useState("instrumental");
   const [separationReady, setSeparationReady] = useState(false);
   const [vocalsReady, setVocalsReady] = useState(false);
+  const [tracksReady, setTracksReady] = useState(false);
+  const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
   const [listenSource, setListenSource] = useState<"original" | Stem>("original");
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [audioPlayToken, setAudioPlayToken] = useState(0);
+  const [toneStopToken, setToneStopToken] = useState(0);
   const resumePlayback = useRef<{ time: number; playing: boolean } | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [jobId, setJobId] = useState("");
@@ -91,8 +95,8 @@ export function MediaTranscription({ open, onClose, onPractice }: {
     if (!open) return;
     setError("");
     setLimitsReady(false);
-    void Promise.all([api<typeof catalog>("/catalog"), api<typeof history>("/jobs"), api<{ local: boolean; max_bytes: number; max_duration: number; engines: { demucs?: boolean; vocal_removal?: boolean } }>("/health")])
-      .then(([choices, records, health]) => { setCatalog(choices); setHistory(records); setHosted(health.local === false); setLimits({ max_bytes: health.max_bytes, max_duration: health.max_duration }); setSeparationReady(health.engines.demucs === true); setVocalsReady(health.engines.vocal_removal === true); setLimitsReady(true); })
+    void Promise.all([api<typeof catalog>("/catalog"), api<typeof history>("/jobs"), api<{ local: boolean; max_bytes: number; max_duration: number; features?: { note_tracks?: boolean }; engines: { demucs?: boolean; vocal_removal?: boolean } }>("/health")])
+      .then(([choices, records, health]) => { setCatalog(choices); setHistory(records); setHosted(health.local === false); setLimits({ max_bytes: health.max_bytes, max_duration: health.max_duration }); setSeparationReady(health.engines.demucs === true); setVocalsReady(health.engines.vocal_removal === true); setTracksReady(health.features?.note_tracks === true); setLimitsReady(true); })
       .catch((e) => setError(e.message));
   }, [open, result?.id]);
   useEffect(() => {
@@ -105,7 +109,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
         if (cancelled) return;
         setJob(next);
         if (next.status === "done" && next.result) {
-          setResult(next.result); setBusy(false); setError(""); setNotePage(0); setLoop(null); setTime(0);
+          setResult(next.result); setBusy(false); setError(""); setNotePage(0); setSelectedNotes([]); setLoop(null); setTime(0);
           setListenSource(next.result.separation?.notes_source || "original"); resumePlayback.current = null;
         } else if (["error", "cancelled"].includes(next.status)) {
           setBusy(false); setError(next.error || "Analysis cancelled.");
@@ -185,7 +189,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
     setSaving(true); setError("");
     try {
       const next = await api<Transcription>(`/jobs/${result.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: result.revision, ...values }) });
-      setResult(next);
+      setResult(next); setSelectedNotes([]);
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
   }
@@ -241,6 +245,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
           <small className="transcription-hint">{t(separation === "instrumental" ? "Remove singing and speech before analyzing chords and notes. Other instruments remain; separation takes extra time." : separation === "guitar" ? "Notes use the guitar stem; chords use the full mix. Separation takes extra time and can lose quiet notes." : "Use original audio for a clean guitar recording.")}{separation === "guitar" && !separationReady && <> {t("Guitar separation is not available on this analysis service yet.")}</>}{separation === "instrumental" && !vocalsReady && <> {t("Vocal removal is not available on this analysis service yet.")}</>}</small>
           <details className="media-range"><summary>{t("Trim clip")} <span>{clipStart === "0" && clipEnd === "" ? t("Full file by default") : `${clipStart}s — ${clipEnd || t("end")}`}</span></summary><div className="media-clip"><label>{t("Start time (seconds)")}<input type="number" min="0" step="0.1" value={clipStart} onChange={(e) => setClipStart(e.target.value)} disabled={busy} /></label>
             <label>{t("End time (seconds)")}<input type="number" min="0" step="0.1" placeholder={t("End of file")} value={clipEnd} onChange={(e) => setClipEnd(e.target.value)} disabled={busy} /></label></div></details>
+          <p className="transcription-hint">{t("Two guitars in one recording? Guitar isolation keeps them in one stem. Assign notes to Guitar 1 and Guitar 2 after analysis for separate score exports; automatic separation of two guitars is not available.")}</p>
           <button className="transcription-primary" onClick={() => void start()} disabled={busy || !limitsReady || (separation === "instrumental" && !vocalsReady) || (separation === "guitar" && !separationReady)}>{busy ? (upload ? t(upload.stage === "preparing" ? "Preparing audio…" : "Uploading file…") : t("Analyzing…")) : t("Start analysis")}</button>
           <div className="transcription-actions"><button disabled={busy} onClick={() => void start("harmony")}>{t("Try chord demo")}</button><button disabled={busy} onClick={() => void start("melody")}>{t("Try melody demo (Beta)")}</button></div>
         </div>
@@ -267,7 +272,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
           <small>{t("Reanalysis creates a new draft and keeps your previous edits.")}</small>
           <label>{t("Clip audio · starting at {time} in the source file", { time: seconds(result.clip_start || 0) })}</label>
           {result.separation?.enabled && <><label>{t("Listen to")}<select aria-label={t("Listen to")} value={listenSource} onChange={(e) => switchSource(e.target.value as "original" | Stem)}><option value="original">{t("Original audio")}</option>{result.separation.stems.map((stem) => <option key={stem} value={stem}>{t(stemLabels[stem])}</option>)}</select></label><small>{t(result.separation.notes_source === "instrumental" ? "Chords and notes use the accompaniment. Switch to original audio or vocals to compare at the same position." : "Notes use the guitar stem. Switch tracks to compare at the same position.")}</small></>}
-          <audio ref={player} key={result.id} src={playbackUrl} controls onPlay={() => setAudioPlayToken(token => token + 1)} onLoadedMetadata={(e) => { const audio = e.currentTarget; audio.playbackRate = playbackSpeed; const resume = resumePlayback.current; resumePlayback.current = null; if (resume) { audio.currentTime = Math.min(resume.time, Math.max(0, audio.duration - .01)); if (resume.playing) void audio.play().catch(() => setError("请点击原音播放器的播放按钮。")); } }} onTimeUpdate={(e) => { const audio = e.currentTarget; if (loop && audio.currentTime >= loop.end) audio.currentTime = loop.start; setTime(audio.currentTime); }} onEnded={() => { if (loop && player.current) { player.current.currentTime = loop.start; void player.current.play(); } }} />
+          <audio ref={player} key={result.id} src={playbackUrl} controls onPlay={() => { setAudioPlayToken(token => token + 1); setToneStopToken(token => token + 1); }} onLoadedMetadata={(e) => { const audio = e.currentTarget; audio.playbackRate = playbackSpeed; const resume = resumePlayback.current; resumePlayback.current = null; if (resume) { audio.currentTime = Math.min(resume.time, Math.max(0, audio.duration - .01)); if (resume.playing) void audio.play().catch(() => setError("请点击原音播放器的播放按钮。")); } }} onTimeUpdate={(e) => { const audio = e.currentTarget; if (loop && audio.currentTime >= loop.end) audio.currentTime = loop.start; setTime(audio.currentTime); }} onEnded={() => { if (loop && player.current) { player.current.currentTime = loop.start; void player.current.play(); } }} />
           <div className="transcription-actions"><label>{t("Playback speed")}<select value={playbackSpeed} onChange={(e) => { const speed = Number(e.target.value); setPlaybackSpeed(speed); if (player.current) player.current.playbackRate = speed; }}><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1">1×</option></select></label>
             {listenSource !== "original" && <a href={playbackUrl} download>{t("Download selected stem WAV")}</a>}
             {loop && <button onClick={() => setLoop(null)}>{t("Stop loop")} {seconds(loop.start)}–{seconds(loop.end)}</button>}
@@ -281,6 +286,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
             requestAnimationFrame(() => notesView.current?.querySelector(`[data-note-index="${index}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
           }
         }} />}
+        {open && <details className="tone-guide-details"><summary>{t("Tone starting points")}</summary><ToneGuide stopToken={toneStopToken} onBeforePlay={() => { player.current?.pause(); setAudioPlayToken(token => token + 1); }} /></details>}
         <details className="transcription-caveats"><summary>{t("What to review in this analysis")}</summary>{result.warnings.map((warning) => <p key={warning}>{localize(warning)}</p>)}</details>
         {result.chords.length > 0 && <section className="transcription-chords" ref={chordsView}><header><h3>{t("Chord chart")}</h3><div className="transcription-actions"><a href={download("chords.txt")} download>{t("Download chord chart")}</a><a href={download("chords.csv")} download>{t("Export chord table")}</a></div></header>
           <p className="transcription-accuracy">{t("Automatic chord estimates need listening review. Unclear segments are marked for review; an edited label is not a guarantee of accuracy. Inversions and extended chords may be missed.")}</p>
@@ -299,11 +305,20 @@ export function MediaTranscription({ open, onClose, onPractice }: {
             <label>{t("Preferred fret range")}<select name="fretRange" defaultValue={`${result.score_settings.fret_min ?? 5},${result.score_settings.fret_max ?? 12}`}><option value="0,5">{t("Lower · 0–5")}</option><option value="5,12">{t("Middle · 5–12")}</option><option value="8,17">{t("Higher · 8–17")}</option></select></label>
             <button disabled={saving}>{t("Update score")}</button>
           </form></details>
-          {score ? <><div className="score-notices">{score.notices.map((notice) => <p key={notice}>{localize(notice)}</p>)}<small>{t(score.bar_count === 1 ? "{count} bar" : "{count} bars", { count: score.bar_count })} · {t(score.assigned_count === 1 ? "{count} note assigned to tabs" : "{count} notes assigned to tabs", { count: score.assigned_count })}</small></div><NotationScore musicxml={score.musicxml} name={result.name} notes={result.notes} duration={result.duration} audioPosition={time} playbackSpeed={playbackSpeed} audioPlayToken={audioPlayToken} onBeforePlay={() => player.current?.pause()} /></> : <p role="status">{result.notes.some((n) => !n.excluded) ? t("Preparing score…") : result.notes.length ? t("All notes are removed. Restore them below.") : t("No notes were detected. Try a clearer clip or add notes after listening.")}</p>}
+          {score ? <><div className="score-notices">{score.notices.map((notice) => <p key={notice}>{localize(notice)}</p>)}<small>{t(score.bar_count === 1 ? "{count} bar" : "{count} bars", { count: score.bar_count })} · {t(score.assigned_count === 1 ? "{count} note assigned to tabs" : "{count} notes assigned to tabs", { count: score.assigned_count })}</small></div><NotationScore musicxml={score.musicxml} name={result.name} notes={result.notes} duration={result.duration} audioPosition={time} playbackSpeed={playbackSpeed} audioPlayToken={audioPlayToken} onBeforePlay={() => { player.current?.pause(); setToneStopToken(token => token + 1); }} /></> : <p role="status">{result.notes.some((n) => !n.excluded) ? t("Preparing score…") : result.notes.length ? t("All notes are removed. Restore them below.") : t("No notes were detected. Try a clearer clip or add notes after listening.")}</p>}
         </section>}
         {hasNotation && <details className="transcription-notes" ref={notesView}><summary>{t("Edit notes (Beta)")} · {result.notes.length}</summary><p>{t("Listen to each note, adjust pitch and timing, remove false notes, or add missing ones. Edits also update the score and exports.")}</p>
+          <aside className="transcription-recommendation"><strong>{t("Arrange two guitar tracks")}</strong><p>{t("All notes start on Guitar 1. Select notes and assign them by ear. Score, Guitar Pro and MIDI exports keep the tracks separate; the original audio stays mixed.")}</p>
+            {tracksReady ? <div className="transcription-actions">
+              <button disabled={saving} onClick={() => setSelectedNotes(result.notes.slice(notePage * 20, notePage * 20 + 20).map((_, row) => notePage * 20 + row))}>{t("Select this page")}</button>
+              <button disabled={saving || !selectedNotes.length} onClick={() => setSelectedNotes([])}>{t("Clear selection")}</button>
+              <span role="status">{t("{count} notes selected", { count: selectedNotes.length })}</span>
+              {([1,2] as const).map(track => <button key={track} disabled={saving || !selectedNotes.length} onClick={() => void patch({ note_tracks: { indices: selectedNotes, track } })}>{t("Assign to Guitar {number}", { number: track })}</button>)}
+            </div> : <p>{t("This analysis service needs an update before guitar track assignments can be saved.")}</p>}
+            <small>{t("Guitar 1: {first} notes · Guitar 2: {second} notes", { first: result.notes.filter(n => !n.excluded && (n.track ?? 1) === 1).length, second: result.notes.filter(n => !n.excluded && n.track === 2).length })}</small>
+          </aside>
           <div className="transcription-actions"><a href={download("notes.mid")} download>{t("MIDI (notes · Beta)")}</a><button disabled={saving} onClick={() => void patch({ note: { midi: 60, start: Math.min(time, result.duration - .1), end: Math.min(result.duration, time + .25) } })}>{t("Add C4 at playhead")}</button></div>
-          <div className="note-editor">{result.notes.slice(notePage * 20, notePage * 20 + 20).map((note, row) => <NoteRow key={`${notePage * 20 + row}-${result.revision}`} note={note} index={notePage * 20 + row} saving={saving} duration={result.duration} onSeek={seek} onSave={(value) => void patch({ note: value })} />)}</div>
+          <div className="note-editor">{result.notes.slice(notePage * 20, notePage * 20 + 20).map((note, row) => <NoteRow key={`${notePage * 20 + row}-${result.revision}`} note={note} index={notePage * 20 + row} saving={saving} duration={result.duration} tracksReady={tracksReady} selected={selectedNotes.includes(notePage * 20 + row)} onSelect={checked => setSelectedNotes(previous => checked ? [...previous, notePage * 20 + row] : previous.filter(index => index !== notePage * 20 + row))} onSeek={seek} onSave={(value) => void patch({ note: value })} />)}</div>
           <div className="transcription-actions"><button disabled={notePage === 0} onClick={() => setNotePage((n) => n - 1)}>{t("Previous page")}</button><span>{notePage + 1} / {Math.max(1, Math.ceil(result.notes.length / 20))}</span><button disabled={(notePage + 1) * 20 >= result.notes.length} onClick={() => setNotePage((n) => n + 1)}>{t("Next page")}</button></div>
         </details>}
       </div>}
@@ -311,13 +326,15 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   </dialog>;
 }
 
-function NoteRow({ note, index, saving, duration, onSeek, onSave }: {
-  note: DetectedNote; index: number; saving: boolean; duration: number;
+function NoteRow({ note, index, saving, duration, tracksReady, selected, onSelect, onSeek, onSave }: {
+  note: DetectedNote; index: number; saving: boolean; duration: number; tracksReady: boolean; selected: boolean; onSelect: (checked: boolean) => void;
   onSeek: (start: number, end?: number) => void; onSave: (data: object) => void;
 }) {
   const { t, localize } = useLanguage();
-  return <form className={`note-row ${note.excluded ? "excluded" : ""}`} data-note-index={index} onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); onSave({ index, midi: Number(form.get("midi")), start: Number(form.get("start")), end: Number(form.get("end")), excluded: note.excluded || false }); }}>
+  return <form className={`note-row ${note.excluded ? "excluded" : ""}`} data-note-index={index} onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); onSave({ index, midi: Number(form.get("midi")), start: Number(form.get("start")), end: Number(form.get("end")), excluded: note.excluded || false, ...(tracksReady ? { track: Number(form.get("track")) } : {}) }); }}>
+    {tracksReady && <label><input type="checkbox" aria-label={t("Select note {number}", { number: index + 1 })} checked={selected} disabled={saving} onChange={event => onSelect(event.target.checked)} />{t("Select")}</label>}
     <button type="button" onClick={() => onSeek(note.start, note.end)}>{index + 1} · {t("Listen")}</button>
+    {tracksReady && <label>{t("Guitar track")}<select name="track" defaultValue={note.track ?? 1}>{([1,2] as const).map(track => <option key={track} value={track}>{t("Guitar {number}", { number: track })}</option>)}</select></label>}
     <label>{t("Pitch")}<select name="midi" defaultValue={note.midi}>{Array.from({ length: 128 }, (_, midi) => <option key={midi} value={midi}>{pitchName(midi)}</option>)}</select></label>
     <label>{t("Start (seconds)")}<input name="start" type="number" min="0" max={duration} step="0.0001" defaultValue={note.start} required /></label>
     <label>{t("End (seconds)")}<input name="end" type="number" min="0.0001" max={duration} step="0.0001" defaultValue={note.end} required /></label>
