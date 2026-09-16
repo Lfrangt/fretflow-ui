@@ -6,24 +6,53 @@ export const rightHandedStringPosition = (string: number) => (string - 1) / 5;
 /** Keep a stable fret origin; the phone camera moves, not the fret grid. */
 export const PRACTICE_FRET_COUNT = 21;
 
+/** Equal temperament: the 12th fret divides the vibrating string in half. */
+export const fretDistance = (fret: number) => 1 - 2 ** (-Math.max(0, fret) / 12);
+
+/** Cell edges and centre, normalised to the visible length of the full neck. */
+export function fretCell(fret: number, fretCount = PRACTICE_FRET_COUNT) {
+  const end = Math.min(fretCount, Math.max(1, fret));
+  const length = fretDistance(fretCount);
+  const start = fretDistance(end - 1) / length;
+  const right = fretDistance(end) / length;
+  return { start, end: right, width: right - start, center: (start + right) / 2 };
+}
+
+export type FretWindow = { first: number; last: number };
+
+/** Keep nearby chords in the same shot; move only when they reach its edges. */
+export function fretboardWindow(frets: number[], previous: FretWindow, fretCount = PRACTICE_FRET_COUNT): FretWindow {
+  if (!frets.length) return previous;
+  const low = Math.max(1, Math.min(...frets));
+  const high = Math.min(fretCount, Math.max(...frets));
+  if (low >= previous.first + (previous.first === 1 ? 0 : 1)
+    && high <= previous.last - (previous.last === fretCount ? 0 : 1)) return previous;
+  const count = Math.min(fretCount, Math.max(8, high - low + 3));
+  const first = Math.max(1, Math.min(fretCount - count + 1, Math.floor((low + high - count + 1) / 2)));
+  return { first, last: first + count - 1 };
+}
+
 /** Leave neighbouring frets around the shape and hold still inside that safe area. */
-export function fretboardScrollTarget({ frets, fretWidth, gridX, viewportWidth, contentWidth, scrollLeft }: {
-  frets: number[]; fretWidth: number; gridX: number;
+export function fretboardScrollTarget({ frets, gridWidth, fretCount, gridX, viewportWidth, contentWidth, scrollLeft }: {
+  frets: number[]; gridWidth: number; fretCount: number; gridX: number;
   viewportWidth: number; contentWidth: number; scrollLeft: number;
 }) {
   const maxScroll = Math.max(0, contentWidth - viewportWidth);
   const current = Math.max(0, Math.min(maxScroll, scrollLeft));
   if (!frets.length || viewportWidth <= 0) return current;
-  const left = gridX + (Math.max(1, Math.min(...frets)) - .5) * fretWidth;
-  const right = gridX + (Math.max(1, Math.max(...frets)) - .5) * fretWidth;
-  const padding = Math.min(fretWidth * 1.25, viewportWidth * .2);
+  const first = fretCell(Math.min(...frets), fretCount);
+  const last = fretCell(Math.max(...frets), fretCount);
+  const left = gridX + first.center * gridWidth;
+  const right = gridX + last.center * gridWidth;
+  const padding = Math.min(first.width * gridWidth, viewportWidth * .15);
   if (left >= current + padding && right <= current + viewportWidth - padding) return current;
   return Math.max(0, Math.min(maxScroll, (left + right - viewportWidth) / 2));
 }
 
 /** Phone focus keeps frets and labels at reading size; only this strip scrolls. */
 export function mobileFocusLayout(guitar: DreamGuitar, width: number, height: number, frets: number) {
-  const neckWidth = Math.max(width - 48, frets * 44);
+  // Even the narrowest high fret must fit a 28px note badge.
+  const neckWidth = Math.max(width - 48, 14 + 30 / fretCell(frets, frets).width);
   const neckHeight = Math.max(112, Math.min(216, height - 52));
   const neckX = 32;
   const neckY = 32;

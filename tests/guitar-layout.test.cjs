@@ -17,7 +17,7 @@ function load(name) {
 }
 
 const { dreamGuitars } = load('dream-guitars');
-const { fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
+const { fretCell, fretDistance, fretboardWindow, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
 test('right-handed horizontal fretboards put the treble strings above the bass, like TAB', () => {
@@ -51,7 +51,7 @@ test('every guitar keeps its rotated photo and learning neck on the same string 
 function phoneCamera(viewportWidth, frets, scrollLeft = 0) {
   const layout = mobileFocusLayout(dreamGuitars[0], viewportWidth, 330, PRACTICE_FRET_COUNT);
   const camera = { frets, scrollLeft, viewportWidth, contentWidth: layout.width,
-    gridX: layout.neckX + 14, fretWidth: (layout.neckWidth - 14) / PRACTICE_FRET_COUNT };
+    gridX: layout.neckX + 14, gridWidth: layout.neckWidth - 14, fretCount: PRACTICE_FRET_COUNT };
   return { ...camera, target: fretboardScrollTarget(camera) };
 }
 
@@ -59,10 +59,10 @@ test('phone camera follows frets 15–17 with neighbouring fret context at narro
   for (const width of [292, 347, 362, 402, 812]) {
     const camera = phoneCamera(width, [15, 16, 17]);
     assert.ok(camera.target > 0, 'high positions must move the viewport');
-    const left = camera.gridX + 14.5 * camera.fretWidth - camera.target;
-    const right = camera.gridX + 16.5 * camera.fretWidth - camera.target;
-    assert.ok(left >= camera.fretWidth, `left context at ${width}px`);
-    assert.ok(right <= width - camera.fretWidth, `right context at ${width}px`);
+    const left = camera.gridX + fretCell(15).center * camera.gridWidth - camera.target;
+    const right = camera.gridX + fretCell(17).center * camera.gridWidth - camera.target;
+    assert.ok(left >= 40, `left context at ${width}px`);
+    assert.ok(right <= width - 40, `right context at ${width}px`);
     assert.ok(camera.target <= camera.contentWidth - width);
   }
 });
@@ -74,7 +74,8 @@ test('nearby chord changes hold the camera still; a position shift pans and can 
   const high = phoneCamera(362, [15, 17], nearby.target);
   assert.ok(high.target > nearby.target);
   const low = phoneCamera(362, [1, 3], high.target);
-  close(low.target, 0);
+  assert.ok(low.target < high.target);
+  assert.ok(low.gridX + fretCell(1).center * low.gridWidth - low.target >= 14);
 });
 
 test('rotation rechecks visibility, silence preserves framing, and neck ends clamp safely', () => {
@@ -85,5 +86,51 @@ test('rotation rechecks visibility, silence preserves framing, and neck ends cla
   close(phoneCamera(292, [0, 1, 2]).target, 0);
   const end = phoneCamera(292, [20, 21]);
   close(end.target, end.contentWidth - end.viewportWidth);
-  close(phoneCamera(1200, [15, 17]).target, 0);
+  close(phoneCamera(1400, [15, 17]).target, 0);
+});
+
+
+test('fret geometry uses equal temperament, with each octave halving cell width', () => {
+  close(fretDistance(0), 0);
+  close(fretDistance(12), .5);
+  close(fretDistance(24), .75);
+  for (const count of [17, 21, 24]) {
+    let width = 0;
+    for (let fret = 1; fret <= count; fret++) {
+      const cell = fretCell(fret, count);
+      assert.ok(cell.start < cell.center && cell.center < cell.end);
+      close(cell.center, (cell.start + cell.end) / 2);
+      if (fret > 1) close(cell.width / fretCell(fret - 1, count).width, 2 ** (-1 / 12));
+      if (fret > 12) close(cell.width / fretCell(fret - 12, count).width, .5);
+      width += cell.width;
+    }
+    close(width, 1);
+  }
+});
+
+test('phone high frets remain readable and a four-fret low shape fits a 300px viewport', () => {
+  const camera = phoneCamera(300, [1, 2, 3, 4]);
+  assert.ok(fretCell(21).width * camera.gridWidth >= 30 - 1e-9);
+  const left = camera.gridX + fretCell(1).center * camera.gridWidth - camera.target;
+  const right = camera.gridX + fretCell(4).center * camera.gridWidth - camera.target;
+  assert.ok(left >= 14);
+  assert.ok(right <= 300 - 14);
+});
+
+test('desktop camera holds nearby shapes, frames high positions, and preserves rests', () => {
+  const initial = { first: 1, last: 8 };
+  assert.equal(fretboardWindow([3, 5, 6], initial), initial);
+  const middle = fretboardWindow([8, 10], initial);
+  assert.ok(middle.first <= 7 && middle.last >= 11);
+  assert.equal(fretboardWindow([7, 10], middle), middle);
+  const high = fretboardWindow([15, 16, 17], middle);
+  assert.ok(high.first < 15 && high.last > 17);
+  assert.equal(high.last - high.first + 1, 8);
+  assert.equal(fretboardWindow([], high), high);
+  const end = fretboardWindow([20, 21], high);
+  assert.equal(end.last, 21);
+  const low = fretboardWindow([0, 1, 3], end);
+  assert.equal(low.first, 1);
+  const wide = fretboardWindow([1, 17], initial);
+  assert.ok(wide.first <= 1 && wide.last >= 17);
 });

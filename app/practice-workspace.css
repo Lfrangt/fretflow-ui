@@ -57,7 +57,7 @@ body { overflow: auto; }
 .maple-neck .neck-strings small { color: #4a381fb3; }
 .maple-neck .neck-strings > span { background: linear-gradient(180deg,#f1eddb,#6c5c46); }
 .learning-neck { position: absolute; z-index: 1; left: var(--neck-x); top: var(--neck-y); width: var(--neck-width); height: var(--neck-height); }
-.neck-ruler { position: absolute; left: 14px; right: 0; top: -29px; display: grid; grid-template-columns: repeat(12, 1fr); text-align: center; color: #7c7568; font-size: 11px; font-weight: 500; }
+.neck-ruler { position: absolute; left: 14px; right: 0; top: -29px; display: grid; text-align: center; color: #7c7568; font-size: 11px; font-weight: 500; }
 .neck-clip-defs { position: absolute; }
 .neck-surface {
   position: relative;
@@ -74,7 +74,7 @@ body { overflow: auto; }
 .neck-surface::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, #fff1da03 0 1px, transparent 1px 4px), linear-gradient(90deg, #00000014, transparent 36%, #d6b98808 72%, transparent); }
 .neck-nut { position: absolute; left: 0; top: 0; height: 100%; width: 14px; z-index: 4; background: linear-gradient(90deg, #eee5d2, #b2a279 68%, #827150); box-shadow: 3px 0 8px #0004; }
 .neck-grid { position: absolute; inset: 0 0 0 14px; }
-.neck-frets { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(12, 1fr); z-index: 2; }
+.neck-frets { position: absolute; inset: 0; display: grid; z-index: 2; }
 .neck-frets i { border-right: 2px solid #c4bba3; box-shadow: inset -1px 0 #f6efdc55, 1px 0 3px #0005; }
 .neck-inlays { position: absolute; inset: 0; z-index: 1; }
 .neck-inlays b { position: absolute; top: 50%; transform: translate(-50%,-50%); width: clamp(9px,1vw,14px); height: clamp(9px,1vw,14px); border-radius: 50%; background: radial-gradient(circle at 30% 25%, #f9f2dc, #b4a684 68%, #75613c); box-shadow: inset 0 1px #fff8, 0 2px 3px #0002; opacity: .85; }
@@ -482,3 +482,14 @@ body { overflow: auto; }
   .score-import-steps li > label { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
   .score-import-steps input { width: 80px; }
 }
+
+/* The desktop camera crops a larger neck around the active hand position. */
+.desktop-camera .instrument-composition { top: 0; left: 0; transform-origin: 0 0; }
+.desktop-camera .neck-caption { display: none; }
+.desktop-camera .focus-current-chord { z-index: 2; }
+.desktop-camera .instrument-photo-frame, .desktop-camera .neck-joint { display: none; }
+.desktop-camera .learning-neck .practice-note { width: var(--camera-note-size); height: var(--camera-note-size); font-size: var(--camera-label-size); }
+.desktop-camera .neck-ruler { font-size: var(--camera-label-size); top: var(--camera-ruler-top); }
+.desktop-camera .neck-inlays b { width: var(--camera-inlay-size); height: var(--camera-inlay-size); }
+.desktop-camera .neck-strings small { font-size: var(--camera-label-size); }
+.desktop-camera .neck-frets i { border-right-width: var(--camera-fret-width); }
