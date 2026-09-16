@@ -49,6 +49,14 @@ licenses; this document does not relicense any dependency, model or dataset.
 
 ## Other dependencies
 
+### Mediabunny (browser audio extraction)
+
+- Mediabunny 1.56.3: https://github.com/Vanilagy/mediabunny — MPL-2.0.
+- Installed unmodified through npm and loaded only when preparing an upload.
+- Copies encoded audio into an audio-only MP4 without re-encoding. Unsupported
+  inputs retain the original upload path. No video frames leave the browser when
+  this optimization succeeds. The package includes its upstream license.
+
 ### Demucs (optional guitar separation)
 
 - Source: https://github.com/facebookresearch/demucs — MIT, Meta Platforms, Inc. and affiliates. License copy: `licenses/Demucs-MIT.txt`.
@@ -78,3 +86,6 @@ Demucs distribution. Its URL and full SHA-256 are pinned as `demucs_vocals` in
 `models.lock.json`. The code uses the same Demucs 4.0.1 MIT license retained in
 `licenses/Demucs-MIT.txt`. Model files and user-derived audio are not committed.
 Upstream: https://github.com/facebookresearch/demucs
+# PDF exports
+
+- pdf-lib 1.17.1 - MIT - https://github.com/Hopding/pdf-lib. Used on demand in the browser to package A4 chord charts and alphaTab-rendered notation as downloadable PDFs.

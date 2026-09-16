@@ -7,8 +7,8 @@
 
 - 固定入口 `https://api.fretflow.io`，Caddy 自动管理 HTTPS。
 - Linux systemd 管理单个 Python worker；开机自启、退出后自动重启。
-- 任务和 SQLite 额度持久化到 `/var/lib/fretflow-worker`，模型和程序位于 `/opt/fretflow-worker`。
-- 维持当前 1 个执行任务、60 秒片段、95 MiB 文件及 50/2 次每日额度。
+- 任务和 SQLite 上传票据持久化到 `/var/lib/fretflow-worker`，模型和程序位于 `/opt/fretflow-worker`。
+- 维持当前 1 个执行任务、180 秒片段及 95 MiB 文件限制；不设每日分析次数额度。
 - 这是一台常驻服务器，不是多机高可用；维护和故障仍可能短暂中断服务。
 
 ## 服务器准备
@@ -37,7 +37,7 @@
 ## 切换前验收与数据迁移
 
 1. 核对 DNS、证书、`https://api.fretflow.io/api/health`，确认 hosted 模式及全部模型可用。
-2. 使用新后端地址和现有 token 创建一个不接管正式域名的 Vercel 部署，进行带签名的浏览器上传、分析、试听、下载、跨会话 404 和额度验证；至少包含大于 4.5 MB 的文件。
+2. 使用新后端地址和现有 token 创建一个不接管正式域名的 Vercel 部署，进行带签名的浏览器上传、分析、试听、下载、跨会话 404 和连续多次分析验证；至少包含大于 4.5 MB 的文件。
 3. 在目标机记录实际推理峰值内存、耗时和磁盘增长。验证 worker 异常退出后 systemd 自动拉起，随后重启整台 VPS，再验证 API 与分析流程。
 4. 正式切换安排短暂维护窗口：暂停新任务，等旧任务完成。停止旧 worker 后，经私有传输复制旧 `.runtime/jobs/` 到新 `/var/lib/fretflow-worker/jobs/`，复制旧 `.runtime/hosting.sqlite3` 到新 `/var/lib/fretflow-worker/hosting.sqlite3`。不要在运行中的 SQLite 上直接复制，勿覆盖旧目录或删除旧数据。
 5. 复制后把新数据目录权限交给 `fretflow:fretflow`，启动新 worker，验证已有浏览器会话仍能访问保留期内的记录。迁移时钟与保留期不能重置。
@@ -46,7 +46,7 @@
 
 ## 回滚与维护
 
-切换前保留旧服务和 Vercel 部署。若新服务失败，先停止接收任务并评估新任务数据，再恢复旧地址/部署；若已接收新任务，应先停两边并迁回新增数据，避免额度或记录分叉。不要同时运行两个写入同一数据目录的 worker。
+切换前保留旧服务和 Vercel 部署。若新服务失败，先停止接收任务并评估新任务数据，再恢复旧地址/部署；若已接收新任务，应先停两边并迁回新增数据，避免任务记录或票据状态分叉。不要同时运行两个写入同一数据目录的 worker。
 
 日志：`journalctl -u fretflow-worker --since today`。状态：`systemctl status fretflow-worker`。
 连续启动失败会触发 systemd 限速；修复原因后运行 `systemctl reset-failed fretflow-worker` 并启动。

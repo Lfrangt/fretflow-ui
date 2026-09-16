@@ -7,6 +7,8 @@ import { useLanguage, LanguageSwitcher } from "./language-provider";
 import { useEffect, useRef, useState } from "react";
 import { NotationScore } from "./notation-score";
 import { NoteAttackReview } from "./note-attack-review";
+import { TranscriptionExports } from "./transcription-exports";
+import { prepareMediaUpload, validateClip, type UploadProgress } from "@/lib/media-upload";
 import { api, seconds, TRANSCRIPTION_API, NOTATION_BETA_NOTICE, type AnalysisMode, type DetectedNote, type Job, type ScoreDraft, type Transcription, type Stem } from "@/lib/transcription";
 
 const extensions = ".mp4,.mov,.m4v,.mkv,.avi,.webm,.mpeg,.mpg,.3gp,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.aif";
@@ -27,6 +29,9 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   const notesView = useRef<HTMLDetailsElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
+  const [mediaDuration, setMediaDuration] = useState<number | null>(null);
+  const [upload, setUpload] = useState<UploadProgress | null>(null);
+  const uploadController = useRef<AbortController | null>(null);
   const [clipStart, setClipStart] = useState("0");
   const [clipEnd, setClipEnd] = useState("");
   const [mode, setMode] = useState<AnalysisMode>("chords");
@@ -49,10 +54,14 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   const [history, setHistory] = useState<{ id: string; name: string; separation?: string }[]>([]);
   const [limits, setLimits] = useState({ max_bytes: 200 * 1024 * 1024, max_duration: 180 });
   const [hosted, setHosted] = useState(false);
+  const [limitsReady, setLimitsReady] = useState(false);
   const [time, setTime] = useState(0);
   const [notePage, setNotePage] = useState(0);
   const [loop, setLoop] = useState<{ start: number; end: number } | null>(null);
 
+  useEffect(() => {
+    return () => uploadController.current?.abort();
+  }, []);
   useEffect(() => {
     try {
       const saved = localStorage.getItem("fretflow-analysis-mode");
@@ -81,8 +90,9 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   useEffect(() => {
     if (!open) return;
     setError("");
+    setLimitsReady(false);
     void Promise.all([api<typeof catalog>("/catalog"), api<typeof history>("/jobs"), api<{ local: boolean; max_bytes: number; max_duration: number; engines: { demucs?: boolean; vocal_removal?: boolean } }>("/health")])
-      .then(([choices, records, health]) => { setCatalog(choices); setHistory(records); setHosted(health.local === false); setLimits({ max_bytes: health.max_bytes, max_duration: health.max_duration }); setSeparationReady(health.engines.demucs === true); setVocalsReady(health.engines.vocal_removal === true); })
+      .then(([choices, records, health]) => { setCatalog(choices); setHistory(records); setHosted(health.local === false); setLimits({ max_bytes: health.max_bytes, max_duration: health.max_duration }); setSeparationReady(health.engines.demucs === true); setVocalsReady(health.engines.vocal_removal === true); setLimitsReady(true); })
       .catch((e) => setError(e.message));
   }, [open, result?.id]);
   useEffect(() => {
@@ -124,29 +134,38 @@ export function MediaTranscription({ open, onClose, onPractice }: {
     if (busy || !next) return;
     if (!extensions.split(",").includes("." + next.name.split(".").pop()?.toLowerCase())) { setError("Choose a supported video or audio format."); return; }
     if (next.size > limits.max_bytes) { setError("File exceeds the server upload limit. Please trim it first."); return; }
-    setFile(next); setClipStart("0"); setClipEnd(""); setError("");
+    setFile(next); setMediaDuration(null); setUpload(null); setClipStart("0"); setClipEnd(""); setError("");
   }
 
   async function start(sample?: string) {
-    if (busy) return;
+    if (busy || !limitsReady) return;
     if (!sample && !file) { input.current?.click(); return; }
     const a = Number(clipStart), b = clipEnd === "" ? null : Number(clipEnd);
-    if (!sample && (!Number.isFinite(a) || a < 0 || (b !== null && (!Number.isFinite(b) || b <= a || b - a > limits.max_duration)))) {
-      setError("Clip exceeds the server duration limit. Select a shorter segment."); return;
-    }
+    try { if (!sample) validateClip(a, b, mediaDuration, limits.max_duration); }
+    catch (error) { setError((error as Error).message); return; }
     setBusy(true); setError(""); setResult(null); setScore(null); setJob(null); setJobId(""); player.current?.pause();
+    dialog.current?.querySelectorAll("audio, video").forEach(media => (media as HTMLMediaElement).pause());
+    const controller = new AbortController(); uploadController.current = controller;
+    setUpload(sample ? null : { stage: "preparing", loaded: 0, total: 1, originalBytes: file!.size, bytesPerSecond: 0 });
     const analysisMode = sample === "melody" ? "notes" : mode;
     if (sample === "melody") chooseMode("notes");
     try {
       let response: { id: string };
       if (sample) response = await api("/demo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sample, mode: analysisMode }) });
       else {
-        const form = new FormData(); form.append("file", file!); form.append("mode", mode); form.append("clip_start", String(a)); form.append("separation", separation);
+        const prepared = await prepareMediaUpload(file!, {
+          start: a, end: b, maxDuration: limits.max_duration, maxBytes: limits.max_bytes,
+          duration: mediaDuration, signal: controller.signal,
+          onProgress: fraction => setUpload({ stage: "preparing", loaded: fraction, total: 1, originalBytes: file!.size, bytesPerSecond: 0 }),
+        });
+        setUpload({ stage: "authorizing", loaded: 0, total: prepared.size, originalBytes: file!.size, bytesPerSecond: 0 });
+        const form = new FormData(); form.append("file", prepared); form.append("mode", mode); form.append("clip_start", String(a)); form.append("separation", separation);
         if (b !== null) form.append("clip_end", String(b));
-        response = await api("/analyze", { method: "POST", body: form });
+        response = await api("/analyze", { method: "POST", body: form, signal: controller.signal }, { originalBytes: file!.size, onProgress: setUpload });
       }
-      setJobId(response.id);
-    } catch (e) { setBusy(false); setError((e as Error).message); }
+      setUpload(null); setJobId(response.id);
+    } catch (e) { setBusy(false); setUpload(null); if (!controller.signal.aborted) setError((e as Error).message); }
+    finally { if (uploadController.current === controller) uploadController.current = null; }
   }
 
   async function reanalyze() {
@@ -203,11 +222,11 @@ export function MediaTranscription({ open, onClose, onPractice }: {
       <div className="transcription-intro"><p className="transcription-lead">{t("A video. Your next practice session.")}<span>{t("Start with the harmony, check it against the recording, and make the performance your own.")}</span></p><ol className="transcription-journey" aria-label={t("Transcription steps")}><li><b>01</b> {t("Import a clip")}</li><li><b>02</b> {t("Listen & refine")}</li><li><b>03</b> {t("Export & practice")}</li></ol></div>
       <section className="transcription-import" aria-label={t("Media import")}>
         <div className="media-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); chooseFile(e.dataTransfer.files[0]); }}>
-          {preview && video ? <video className="media-thumbnail" src={preview} controls muted playsInline preload="metadata" aria-label={t("Imported video preview")} /> : <div className="media-wave" aria-hidden="true">{[14,28,42,24,52,34,60,38,22,44,30,16].map((height, index) => <i key={index} style={{ height }} />)}</div>}
+          {preview && video ? <video key={preview} className="media-thumbnail" src={preview} controls muted playsInline preload="metadata" onLoadedMetadata={e => setMediaDuration(e.currentTarget.duration)} aria-label={t("Imported video preview")} /> : <div className="media-wave" aria-hidden="true">{[14,28,42,24,52,34,60,38,22,44,30,16].map((height, index) => <i key={index} style={{ height }} />)}</div>}
           <input ref={input} type="file" id="media-file" accept={extensions} disabled={busy} onChange={(e) => { chooseFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
           <label htmlFor="media-file"><strong>{file?.name || t("Drop a video or audio file")}</strong><span>{t("or click to choose a file")}</span></label>
           <small>{t("MP4 · MOV · WebM · MKV · AVI · MP3 · WAV · M4A · FLAC and more")}<br />{t("{size} MiB per file; analyze up to {seconds} seconds at a time", { size: Math.floor(limits.max_bytes / 1024 / 1024), seconds: limits.max_duration })}</small>
-          {hosted && <small>{t("Daily limits apply. Media and results are kept for 24 hours and linked to this browser. Export anything you want to keep.")}</small>}
+          {hosted && <small>{t("Media and results are kept for 24 hours and linked to this browser. Export anything you want to keep.")}</small>}
         </div>
         <div className="media-options">
           <label>{t("What would you like to learn?")}<select value={mode} onChange={(e) => chooseMode(e.target.value as AnalysisMode)} disabled={busy} aria-describedby="analysis-mode-help">
@@ -222,13 +241,17 @@ export function MediaTranscription({ open, onClose, onPractice }: {
           <small className="transcription-hint">{t(separation === "instrumental" ? "Remove singing and speech before analyzing chords and notes. Other instruments remain; separation takes extra time." : separation === "guitar" ? "Notes use the guitar stem; chords use the full mix. Separation takes extra time and can lose quiet notes." : "Use original audio for a clean guitar recording.")}{separation === "guitar" && !separationReady && <> {t("Guitar separation is not available on this analysis service yet.")}</>}{separation === "instrumental" && !vocalsReady && <> {t("Vocal removal is not available on this analysis service yet.")}</>}</small>
           <details className="media-range"><summary>{t("Trim clip")} <span>{clipStart === "0" && clipEnd === "" ? t("Full file by default") : `${clipStart}s — ${clipEnd || t("end")}`}</span></summary><div className="media-clip"><label>{t("Start time (seconds)")}<input type="number" min="0" step="0.1" value={clipStart} onChange={(e) => setClipStart(e.target.value)} disabled={busy} /></label>
             <label>{t("End time (seconds)")}<input type="number" min="0" step="0.1" placeholder={t("End of file")} value={clipEnd} onChange={(e) => setClipEnd(e.target.value)} disabled={busy} /></label></div></details>
-          <button className="transcription-primary" onClick={() => void start()} disabled={busy || (separation === "instrumental" && !vocalsReady) || (separation === "guitar" && !separationReady)}>{busy ? t("Analyzing…") : t("Start analysis")}</button>
+          <button className="transcription-primary" onClick={() => void start()} disabled={busy || !limitsReady || (separation === "instrumental" && !vocalsReady) || (separation === "guitar" && !separationReady)}>{busy ? (upload ? t(upload.stage === "preparing" ? "Preparing audio…" : "Uploading file…") : t("Analyzing…")) : t("Start analysis")}</button>
           <div className="transcription-actions"><button disabled={busy} onClick={() => void start("harmony")}>{t("Try chord demo")}</button><button disabled={busy} onClick={() => void start("melody")}>{t("Try melody demo (Beta)")}</button></div>
         </div>
       </section>
       <p className="transcription-hint">{t("Save TikTok or Douyin videos as files before importing. Share links are not supported yet. Audio is extracted directly; no MP3 conversion needed.")}</p>
-      {preview && !video && <details className="source-preview"><summary>{t("Preview imported audio")}</summary><audio src={preview} controls preload="metadata" /><small>{t("Formats your browser cannot preview may still work with the analysis service.")}</small></details>}
-      {(busy || job?.status === "cancelled") && <div className="transcription-progress" role="status"><span>{job?.stage ? localize(job.stage) : t("Uploading file…")}</span><progress max="100" value={job?.progress || 0} />
+      {preview && !video && <details className="source-preview"><summary>{t("Preview imported audio")}</summary><audio key={preview} src={preview} controls preload="metadata" onLoadedMetadata={e => setMediaDuration(e.currentTarget.duration)} /><small>{t("Formats your browser cannot preview may still work with the analysis service.")}</small></details>}
+      {(busy || job?.status === "cancelled") && <div className="transcription-progress" role="status"><span>{job?.stage ? localize(job.stage) : upload ? t(upload.stage === "preparing" ? "Preparing audio…" : upload.stage === "authorizing" ? "Connecting to upload service…" : upload.stage === "waiting" ? "Upload complete · waiting for the server…" : "Uploading file…") : t("Starting analysis…")}
+        {upload?.stage === "uploading" && <> {Math.min(100, Math.round(upload.loaded / Math.max(upload.total, 1) * 100))}% · {(upload.loaded / 1e6).toFixed(1)} / {(upload.total / 1e6).toFixed(1)} MB · {(upload.bytesPerSecond / 1e6).toFixed(2)} MB/s</>}
+        {upload && upload.stage !== "preparing" && upload.total < upload.originalBytes * .95 && <small> {t("Audio only · {percent}% less to upload", { percent: Math.round((1 - upload.total / upload.originalBytes) * 100) })}</small>}
+      </span><progress max="100" value={job ? job.progress : upload && ["preparing", "uploading"].includes(upload.stage) ? upload.loaded / Math.max(upload.total, 1) * 100 : undefined} />
+        {busy && !jobId && upload && <button onClick={() => uploadController.current?.abort()}>{t("Cancel upload")}</button>}
         {busy && jobId && <button onClick={() => void api(`/jobs/${jobId}`, { method: "DELETE" }).catch((e) => setError(e.message))}>{t("Cancel analysis")}</button>}</div>}
       {error && <div className="transcription-error" role="alert">{localize(error)}{jobId && !busy && <button onClick={() => { setError(""); setPoll((n) => n + 1); }}>{t("Reload result")}</button>}</div>}
       {history.length > 0 && <details className="transcription-history"><summary>{t(hosted ? "Recent records for this browser (kept for 24 hours)" : "Recent local records (kept for 24 hours)")}</summary><div className="transcription-actions">{history.map((item) => <button disabled={busy} key={item.id} onClick={() => { setResult(null); setJobId(item.id); setPoll((n) => n + 1); }}>{localize(item.name)} · {t(item.separation === "instrumental" ? "Accompaniment · vocals removed" : item.separation === "guitar" ? "Guitar" : "Original audio")}</button>)}</div></details>}
@@ -236,6 +259,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
         <header className="transcription-result-head"><div><span>{t("Analysis draft · listen to verify")}</span><h3>{localize(result.name)}</h3><p>{seconds(result.duration)} · {t(result.chords.length === 1 ? "{count} chord segment" : "{count} chord segments", { count: result.chords.length })} · {t(result.notes.filter(n => !n.excluded).length === 1 ? "{count} note" : "{count} notes", { count: result.notes.filter(n => !n.excluded).length })}</p></div>
           <button className="transcription-primary" disabled={!result.chords.some((c) => c.root !== null)} onClick={() => onPractice(result)}>{t("Practice these chords on the fretboard")}</button></header>
         <nav className="transcription-result-nav" aria-label={t("Analysis result navigation")}>{result.chords.length > 0 && <button onClick={() => chordsView.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t("Chord chart")} <span>{result.chords.length}</span></button>}{hasNotation && <button onClick={() => scoreView.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t("Staff / tabs (Beta)")} <span>↗</span></button>}<small>{t("Listen to verify the harmony. Make the arrangement your own.")}</small></nav>
+        <TranscriptionExports key={result.id} result={result} score={score} saving={saving} />
         <section className="transcription-playback" aria-label={t("Compare audio tracks")}>
           <div className="transcription-actions"><button disabled={busy || saving || (separation === "instrumental" && !vocalsReady) || (separation === "guitar" && !separationReady)} onClick={() => void reanalyze()}>{t("Reanalyze with selected options")}</button>
             {result.parent_id && <button disabled={busy} onClick={() => { setResult(null); setJobId(result.parent_id!); setPoll((n) => n + 1); }}>{t("Open previous analysis")}</button>}

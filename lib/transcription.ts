@@ -1,3 +1,5 @@
+import { uploadMedia, type UploadProgress } from "./media-upload";
+
 export const TRANSCRIPTION_API = "/api/transcription";
 export type AnalysisMode = "chords" | "both" | "notes";
 export const NOTATION_BETA_NOTICE = "Staff notation and guitar tabs are in Beta. Notes, rhythms and fingerings may be inaccurate and are for reference only. We are working to improve accuracy; note-for-note reproduction is not guaranteed.";
@@ -27,21 +29,31 @@ export type Transcription = {
 export type ScoreDraft = { musicxml: string; notices: string[]; assigned_count: number; omitted_indices: number[]; bar_count: number };
 export type Job = { id: string; status: string; progress: number; stage: string; error?: string; result: Transcription | null };
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit, upload?: {
+  originalBytes: number; onProgress: (progress: UploadProgress) => void;
+}): Promise<T> {
   let response: Response;
   let url = TRANSCRIPTION_API + path;
   if (path === "/analyze" && init?.body instanceof FormData) {
-    const grant = await api<{ direct: boolean; url?: string; ticket?: string; max_bytes?: number; max_duration?: number }>("/upload-ticket", { method: "POST" });
+    const grant = await api<{ direct: boolean; url?: string; ticket?: string; max_bytes?: number; max_duration?: number }>("/upload-ticket", { method: "POST", signal: init.signal });
     if (grant.direct && grant.url && grant.ticket) {
       const file = init.body.get("file");
       if (file instanceof File && file.size > (grant.max_bytes ?? Infinity)) throw new Error("File exceeds the server upload limit. Please trim it first.");
       // The gateway is the only source of the signed destination and capability.
       url = grant.url;
-      init = { ...init, credentials: "omit", headers: { "X-FretFlow-Ticket": grant.ticket } };
     }
+    return uploadMedia<T>(url, init.body, {
+      ticket: grant.direct ? grant.ticket : undefined,
+      signal: init.signal ?? new AbortController().signal,
+      originalBytes: upload?.originalBytes ?? 0,
+      onProgress: upload?.onProgress ?? (() => {}),
+    });
   }
-  try { response = await fetch(url, { cache: "no-store", ...init }); }
-  catch { throw new Error("Unable to connect to the analysis service. Please try again."); }
+  try { response = await fetch(url, { cache: "no-store", ...init, signal: init?.signal ?? AbortSignal.timeout(60_000) }); }
+  catch (error) {
+    if (init?.signal?.aborted) throw error;
+    throw new Error("Unable to connect to the analysis service. Please try again.");
+  }
   let data;
   try { data = await response.json(); }
   catch { throw new Error("Request failed. Check your input and try again."); }

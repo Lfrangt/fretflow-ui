@@ -9,6 +9,7 @@ import numpy as np
 import soundfile as sf
 
 from .engines import ROOT, verify_model
+from .runtime import configure_torch
 
 CHECKPOINT = ROOT / "vendor/demucs/955717e8-8726e21a.th"
 SETUP_MESSAGE = "去人声模型尚未安装，请运行 npm run setup:vocals，或选择原音分析。"
@@ -25,6 +26,7 @@ def vocal_model():
     verify_model(CHECKPOINT, "demucs_vocals")
     import torch
     from demucs.states import load_model
+    configure_torch()
     # PyTorch 2.9 requires explicit trusted checkpoint loading. Verify the
     # pinned official hash first; user-provided models are never accepted.
     package = torch.load(CHECKPOINT, map_location="cpu", weights_only=False)
@@ -44,7 +46,7 @@ def remove_vocals(source: Path, output: Path, progress) -> dict:
     samples, rate = sf.read(source, dtype="float32", always_2d=True)
     if rate != 44100 or samples.shape[1] != 2 or len(samples) < rate // 2 or not np.isfinite(samples).all():
         raise ValueError("去人声需要至少 0.5 秒的有效立体声音频。")
-    torch.set_num_threads(2)
+    configure_torch()
     mix = torch.from_numpy(samples.T.copy())
     reference = mix.mean(0)
     mean, scale = reference.mean(), reference.std()

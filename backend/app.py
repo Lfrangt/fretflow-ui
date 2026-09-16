@@ -84,6 +84,9 @@ async def lifespan(app):
     if hosting.enabled() and len(os.getenv("FRETFLOW_WORKER_TOKEN", "")) < 32:
         raise RuntimeError("Hosted worker requires a strong FRETFLOW_WORKER_TOKEN")
     RUNTIME.mkdir(parents=True, exist_ok=True)
+    if os.getenv("FRETFLOW_WARM_MODELS", "1" if hosting.enabled() else "0") == "1":
+        from .runtime import warm_models
+        executor.submit(warm_models)
     for folder in RUNTIME.iterdir():
         if not folder.is_dir():
             continue
@@ -211,6 +214,7 @@ def queue_job(job: Job, source: Path):
 
 
 def work(job: Job, source: Path):
+    started = time.monotonic()
     def progress(value, stage):
         if job.cancel.is_set():
             raise InterruptedError("分析已取消")
@@ -241,14 +245,17 @@ def work(job: Job, source: Path):
                 source.unlink(missing_ok=True)
         if sf.info(target).duration > MAX_DURATION:
             raise ValueError("Clip exceeds the server duration limit. Select a shorter segment.")
+        prepared_at = time.monotonic()
+        cached = job.folder / "prepared-stems.json"
+        reused = json.loads(cached.read_text()) if cached.is_file() else None
         if job.separation == "instrumental":
-            separation = remove_vocals(target, job.folder / "stems", progress)
+            separation = reused or remove_vocals(target, job.folder / "stems", progress)
             result = analyze(job.folder / "stems/instrumental.wav", job.mode, job.sensitivity,
                              lambda value, stage: progress(60 + int(value * .37), stage))
             result["separation"] = separation
             result.setdefault("warnings", []).append("本次使用去人声伴奏扒谱。分离可能残留人声或损失部分吉他音色；伴奏中的其他乐器仍会影响识别。")
         elif job.separation == "guitar":
-            separation = separate_audio(target, job.folder / "stems", progress)
+            separation = reused or separate_audio(target, job.folder / "stems", progress)
             result = analyze(target, job.mode, job.sensitivity,
                              lambda value, stage: progress(60 + int(value * .37), stage),
                              notes_path=job.folder / "stems/guitar.wav")
@@ -259,6 +266,9 @@ def work(job: Job, source: Path):
         if job.legacy_source:
             result.setdefault("warnings", []).append("这条旧记录只保留了较低采样率或单声道音轨。重新上传原文件可保留更多分离所需的声音细节。")
         progress(98, "保存本地结果")
+        result["processing"] = {"total_seconds": round(time.monotonic() - started, 3),
+                                "preparation_seconds": round(prepared_at - started, 3),
+                                "reused_stems": bool(reused)}
         with lock:
             result.update({"id": job.id, "name": job.name, "created": job.created, "revision": 0,
                            "clip_start": job.clip_start + job.source_offset, "parent_id": job.parent_id, "legacy_source": job.legacy_source})
@@ -290,7 +300,6 @@ def reserve(name: str, mode: str, sensitivity: float) -> Job:
                 raise HTTPException(401, "Missing user session")
             if any(j.owner_id == job.owner_id and j.status in ("queued", "running") for j in jobs.values()):
                 raise HTTPException(429, "You already have an active analysis. Please wait for it to finish.")
-            hosting.admit(RUNTIME, job.id, job.owner_id)
         job.folder.mkdir(parents=True)
         if job.owner_id:
             (job.folder / "owner.txt").write_text(job.owner_id)
@@ -301,9 +310,12 @@ def reserve(name: str, mode: str, sensitivity: float) -> Job:
 @app.get("/api/health")
 def health():
     from .engines import CHECKPOINT, chord_model, pitch_model
+    from .vocal_removal import vocal_model
+    from .runtime import model_threads
     return {"status": "ok", "local": not hosting.enabled(), "max_duration": MAX_DURATION, "max_bytes": MAX_BYTES,
             "engines": {"chordmini": CHECKPOINT.is_file(), "basic_pitch": importlib.util.find_spec("basic_pitch") is not None, "demucs": separation_available(), "vocal_removal": vocal_removal_available()},
-            "loaded": {"chordmini": bool(chord_model.cache_info().currsize), "basic_pitch": bool(pitch_model.cache_info().currsize)}}
+            "loaded": {"chordmini": bool(chord_model.cache_info().currsize), "basic_pitch": bool(pitch_model.cache_info().currsize), "vocal_removal": bool(vocal_model.cache_info().currsize)},
+            "model_threads": model_threads()}
 
 
 @app.get("/api/catalog")
@@ -470,6 +482,18 @@ def reanalyze(id: str, data: ReanalyzeRequest):
             info = sf.info(source)
             job.legacy_source = original.legacy_source or info.samplerate < 44100 or info.channels < 2
             shutil.copyfile(source, target)
+            # A new draft of the same recording can reuse identical, completed
+            # stems. Copy within the owner-checked transaction so TTL cleanup or
+            # later edits on the parent cannot change this job's inputs.
+            previous = original.result.get("separation", {})
+            if data.separation != "none" and previous.get("mode") == data.separation and not job.legacy_source:
+                stems = previous.get("stems", [])
+                expected = ["instrumental", "vocals"] if data.separation == "instrumental" else list(STEMS)
+                if set(stems) == set(expected) and all((original.folder / "stems" / f"{stem}.wav").is_file() for stem in stems):
+                    (job.folder / "stems").mkdir()
+                    for stem in stems:
+                        shutil.copyfile(original.folder / "stems" / f"{stem}.wav", job.folder / "stems" / f"{stem}.wav")
+                    (job.folder / "prepared-stems.json").write_text(json.dumps({**previous, "reused": True, "seconds": 0.}))
         except (OSError, RuntimeError) as exc:
             jobs.pop(job.id, None)
             shutil.rmtree(job.folder, ignore_errors=True)

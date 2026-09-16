@@ -66,8 +66,9 @@ def analyze(path: Path, mode: str, sensitivity: float, progress, *, notes_path: 
     chroma, rms = chroma[:, :frames], rms[:frames]
     chroma[:, rms < max(.00015, float(np.max(rms)) * .012)] = 0
     base["key"] = estimate_key(chroma, rms)
-    onsets = librosa.onset.onset_detect(y=y, sr=SR, hop_length=HOP)
-    tempo = librosa.feature.tempo(y=y, sr=SR, hop_length=HOP)
+    onset_envelope = librosa.onset.onset_strength(y=y, sr=SR, hop_length=HOP)
+    onsets = librosa.onset.onset_detect(onset_envelope=onset_envelope, sr=SR, hop_length=HOP)
+    tempo = librosa.feature.tempo(onset_envelope=onset_envelope, sr=SR, hop_length=HOP)
     tempo_value = float(np.asarray(tempo).reshape(-1)[0])
     base["tempo"] = {"bpm": round(tempo_value, 1) if len(onsets) >= 3 and 30 <= tempo_value <= 240 else None,
                      "estimated": True}

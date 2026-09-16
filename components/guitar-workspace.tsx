@@ -5,6 +5,7 @@ import { useLanguage, LanguageSwitcher } from "./language-provider";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dreamGuitars } from "@/lib/dream-guitars";
+import { rightHandedStringPosition } from "@/lib/guitar-layout";
 import { MediaTranscription } from "./media-transcription";
 import { TestFeedback } from "./test-feedback";
 import { ScoreImport } from "./score-import";
@@ -329,7 +330,7 @@ function ChordDiagram({ chord, degree, markers }: { chord: string; degree: strin
         <small>{degree}</small>
       </div>
       <div className="mini-diagram">
-        {["E", "A", "D", "G", "B", "e"].map((stringName, index) => (
+        {["e", "B", "G", "D", "A", "E"].map((stringName, index) => (
           <span className="mini-string" key={`${stringName}-${index}`} />
         ))}
         {Array.from({ length: 6 }).map((_, index) => (
@@ -343,7 +344,7 @@ function ChordDiagram({ chord, degree, markers }: { chord: string; degree: strin
               key={`${marker.string}-${marker.fret}-${index}`}
               style={{
                 left: `${((localFret - 0.5) / 5) * 100}%`,
-                top: `${((6 - marker.string) / 5) * 100}%`
+                top: `${rightHandedStringPosition(marker.string) * 100}%`
               }}
             >
               {marker.interval}

@@ -42,7 +42,8 @@ body { overflow: auto; }
 .stage-focus-toggle kbd { margin-left: 4px; padding: 2px 4px; border: 1px solid #80906b33; border-radius: 4px; color: #829174; font: 9px ui-sans-serif, system-ui, sans-serif; }
 .instrument-photo {
   display: block; width: 100%; height: 100%; max-width: none;
-  transform: scaleX(-1); object-fit: contain;
+  /* Rotate the right-handed source into player view without mirroring it. */
+  transform: rotate(180deg); object-fit: contain;
   mask-image: linear-gradient(90deg, #000 0 46%, transparent 69%);
   -webkit-mask-image: linear-gradient(90deg, #000 0 46%, transparent 69%);
   user-select: none;

@@ -1,5 +1,9 @@
 .next
 node_modules
+.gstack/
+.pytest_cache/
+test-results/
+*.tsbuildinfo
 
 # Local prototype files from the pre-Next version.
 /index.html
@@ -17,3 +21,4 @@ vendor/
 .venv-audio
 .runtime/
 verification/
+output/

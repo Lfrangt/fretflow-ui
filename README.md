@@ -13,7 +13,7 @@ This repository includes the current web app, the separately hosted Python analy
 - Use the mobile layout and Focus mode; switch English / 中文 without clearing your work.
 - Import text, ChordPro, MusicXML/MXL or Guitar Pro chord symbols for practice.
 - Analyze an uploaded video/audio clip with ChordMini and Basic Pitch; optionally remove vocals or isolate guitar with Demucs.
-- Review and edit results, compare original and simulated playback, and export chord charts, MIDI, MusicXML or Guitar Pro files.
+- Review and edit results, compare original and simulated playback, and export PDF chord charts or Beta notation, chord TXT/CSV, MIDI, MusicXML and Guitar Pro files.
 
 ## Run the web app
 
@@ -55,7 +55,7 @@ Deploy the Next.js frontend and the Python worker separately. Production has no 
 | --- | --- |
 | `FRETFLOW_WORKER_URL` | Worker URL used by the frontend server |
 | `FRETFLOW_WORKER_TOKEN` | Matching private secret on frontend and worker |
-| `FRETFLOW_HOSTED=1` | Enable signed browser-session ownership and quotas on both services |
+| `FRETFLOW_HOSTED=1` | Enable signed browser-session ownership on both services |
 | `FRETFLOW_ALLOWED_ORIGINS` | Allowed frontend origins on the worker |
 
 See [hosted configuration](docs/HOSTING-500-US.md) and [VPS templates](ops/vps/README.md). Browser sessions are isolated; account login and cross-device history are not implemented. Run your own worker for a fork rather than pointing it at the public demo's private service.

@@ -1,5 +1,26 @@
 import type { DreamGuitar } from "./dream-guitars";
 
+/** Right-handed player view: nut on the left, high e above low E (as in TAB). */
+export const rightHandedStringPosition = (string: number) => (string - 1) / 5;
+
+/** Keep a stable fret origin; the phone camera moves, not the fret grid. */
+export const PRACTICE_FRET_COUNT = 21;
+
+/** Leave neighbouring frets around the shape and hold still inside that safe area. */
+export function fretboardScrollTarget({ frets, fretWidth, gridX, viewportWidth, contentWidth, scrollLeft }: {
+  frets: number[]; fretWidth: number; gridX: number;
+  viewportWidth: number; contentWidth: number; scrollLeft: number;
+}) {
+  const maxScroll = Math.max(0, contentWidth - viewportWidth);
+  const current = Math.max(0, Math.min(maxScroll, scrollLeft));
+  if (!frets.length || viewportWidth <= 0) return current;
+  const left = gridX + (Math.max(1, Math.min(...frets)) - .5) * fretWidth;
+  const right = gridX + (Math.max(1, Math.max(...frets)) - .5) * fretWidth;
+  const padding = Math.min(fretWidth * 1.25, viewportWidth * .2);
+  if (left >= current + padding && right <= current + viewportWidth - padding) return current;
+  return Math.max(0, Math.min(maxScroll, (left + right - viewportWidth) / 2));
+}
+
 /** Phone focus keeps frets and labels at reading size; only this strip scrolls. */
 export function mobileFocusLayout(guitar: DreamGuitar, width: number, height: number, frets: number) {
   const neckWidth = Math.max(width - 48, frets * 44);

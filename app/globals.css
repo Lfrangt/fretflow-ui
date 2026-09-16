@@ -286,7 +286,7 @@ button {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  transform: scaleX(-1);
+  transform: rotate(180deg);
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -702,29 +702,29 @@ button {
 
 .mini-string:nth-child(1) {
   top: 0;
-  height: 2.2px;
 }
 
 .mini-string:nth-child(2) {
   top: 20%;
-  height: 1.9px;
 }
 
 .mini-string:nth-child(3) {
   top: 40%;
-  height: 1.7px;
 }
 
 .mini-string:nth-child(4) {
   top: 60%;
+  height: 1.7px;
 }
 
 .mini-string:nth-child(5) {
   top: 80%;
+  height: 1.9px;
 }
 
 .mini-string:nth-child(6) {
   top: 100%;
+  height: 2.2px;
 }
 
 .mini-fret {
@@ -1930,3 +1930,14 @@ textarea:focus {
     min-height: 46px;
   }
 }
+
+.transcription-export-panel {
+  padding: 20px;
+  border: 1px solid var(--line, #dde4e0);
+  border-radius: 16px;
+  background: var(--surface, #fff);
+}
+.transcription-export-panel header h3 { margin: 0 0 6px; }
+.transcription-export-panel header p { margin: 0 0 16px; color: var(--muted, #586761); font-size: 13px; }
+.transcription-export-panel .transcription-actions { align-items: end; gap: 10px; }
+.transcription-export-panel .transcription-actions label { display: grid; gap: 6px; font-size: 12px; }

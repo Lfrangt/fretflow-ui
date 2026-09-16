@@ -69,6 +69,7 @@ vendor/
 __pycache__/
 .pytest_cache/
 verification/
+output/
 test-results/
 playwright-report/
 coverage/

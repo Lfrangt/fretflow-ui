@@ -71,3 +71,37 @@ def test_failed_removal_never_falls_back_to_vocal_mix(client, monkeypatch):
     job=service.jobs[response.json()['id']]
     service.work(job,job.folder/'input.wav')
     assert job.status=='error' and job.error=='separation failed' and not job.folder.exists()
+
+
+def test_reanalysis_reuses_completed_stems_without_running_separation_again(client, monkeypatch):
+    job=completed_job()
+    raw=np.stack([np.full(44100,.25),np.full(44100,.5)],1)
+    sf.write(job.folder/'audio.wav',raw,44100,subtype='FLOAT')
+    (job.folder/'stems').mkdir()
+    for stem in ['instrumental','vocals']:
+        sf.write(job.folder/'stems'/f'{stem}.wav',raw*.5,44100,subtype='FLOAT')
+    job.result.update(duration=1.,separation=dict(enabled=True,mode='instrumental',model='htdemucs',stems=['instrumental','vocals'],notes_source='instrumental',chords_source='instrumental'))
+    monkeypatch.setattr(service,'vocal_removal_available',lambda:True)
+    def never(*args): raise AssertionError('identical stems should not be recomputed')
+    monkeypatch.setattr(service,'remove_vocals',never)
+    monkeypatch.setattr(service,'analyze',lambda *a,**kw:dict(duration=1.,notes=[],chords=[],warnings=[],mode='notes',sensitivity=.5))
+    response=client.post(f'/api/jobs/{job.id}/reanalyze',json={'mode':'notes','separation':'instrumental'})
+    assert response.status_code==202
+    new=service.jobs[response.json()['id']]
+    assert (new.folder/'stems/instrumental.wav').read_bytes()==(job.folder/'stems/instrumental.wav').read_bytes()
+    # The new result does not depend on the parent's continued existence.
+    (job.folder/'stems/instrumental.wav').unlink()
+    service.work(new,new.folder/'input.wav')
+    assert new.status=='done'
+    assert new.result['processing']['reused_stems'] is True
+    assert new.result['separation']['seconds']==0.
+
+
+def test_missing_stem_falls_back_to_normal_reanalysis(client,monkeypatch):
+    job=completed_job()
+    sf.write(job.folder/'audio.wav',np.zeros((44100,2)),44100,subtype='FLOAT')
+    job.result['separation']=dict(mode='instrumental',stems=['instrumental','vocals'])
+    monkeypatch.setattr(service,'vocal_removal_available',lambda:True)
+    response=client.post(f'/api/jobs/{job.id}/reanalyze',json={'separation':'instrumental'})
+    new=service.jobs[response.json()['id']]
+    assert not (new.folder/'prepared-stems.json').exists()

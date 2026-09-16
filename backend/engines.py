@@ -13,6 +13,7 @@ import sys
 import numpy as np
 
 from .theory import chord_info, PITCHES
+from .runtime import configure_torch, model_threads
 
 ROOT = Path(__file__).resolve().parent.parent
 CHORDMINI = ROOT / "vendor" / "ChordMini"
@@ -35,7 +36,7 @@ def chord_model():
     from src.models import load_model
     from src.utils import HParams, idx2voca_chord, extract_model_state_dict
 
-    torch.set_num_threads(2)
+    configure_torch()
     config = HParams.load(str(CHORDMINI / "config" / "ChordMini.yaml"))
     model, mean, std = load_model(str(CHECKPOINT), "ChordNet", config, torch.device("cpu"))
     # Fail on incomplete checkpoints rather than silently use random parameters.
@@ -87,7 +88,15 @@ def pitch_model():
     # Explicit ONNX avoids CoreML/TensorFlow selection differences across machines.
     path = build_icassp_2022_model_path(FilenameSuffix.onnx)
     verify_model(path, "basic_pitch")
-    return Model(path)
+    # Keep the upstream predictor/output mapping, with a bounded ONNX thread pool.
+    import onnxruntime as ort
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = model_threads()
+    options.inter_op_num_threads = 1
+    model = Model.__new__(Model)
+    model.model_type = Model.MODEL_TYPES.ONNX
+    model.model = ort.InferenceSession(str(path), sess_options=options, providers=["CPUExecutionProvider"])
+    return model
 
 
 def recognize_notes(path: Path, duration: float, sensitivity: float, progress) -> list[dict]:

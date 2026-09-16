@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
+from .runtime import configure_torch
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = "htdemucs_6s"
@@ -29,6 +30,7 @@ def separation_model():
         raise RuntimeError("分轨模型校验失败，请重新运行 npm run setup:separation。")
     import torch
     from demucs.states import load_model
+    configure_torch()
 
     # The upstream checkpoint serializes its model class. Only deserialize our
     # fixed, hash-verified upstream file, never an uploaded/user-selected model.
@@ -50,7 +52,7 @@ def separate_audio(source: Path, output: Path, progress) -> dict:
         raise ValueError("分轨需要有效的 44.1 kHz 立体声音频。")
     if len(audio) < sr // 2:
         raise ValueError("音频太短，请选择至少 0.5 秒的录音。")
-    torch.set_num_threads(2)
+    configure_torch()
     mix = torch.from_numpy(audio.T.copy())
     reference = mix.mean(0)
     scale = reference.std()

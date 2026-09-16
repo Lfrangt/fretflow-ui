@@ -1,3 +1,6 @@
+import sqlite3
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 import backend.app as service
@@ -12,6 +15,7 @@ class HoldExecutor:
 @pytest.fixture
 def hosted(tmp_path, monkeypatch):
     monkeypatch.setenv('FRETFLOW_HOSTED', '1')
+    monkeypatch.setenv('FRETFLOW_WARM_MODELS', '0')
     monkeypatch.setenv('FRETFLOW_WORKER_TOKEN', 'test-only-' + 'x' * 40)
     monkeypatch.setenv('FRETFLOW_ALLOWED_ORIGINS', 'https://fretflow.example')
     monkeypatch.setattr(service, 'RUNTIME', tmp_path / 'jobs')
@@ -63,16 +67,48 @@ def test_upload_ticket_rejects_other_origins_and_tampering(hosted):
     assert hosted.post('/api/upload-ticket', headers={**headers(), 'X-FretFlow-Origin': 'https://evil.example'}).status_code == 403
 
 
-def test_quotas_survive_job_deletion_and_have_global_ceiling(hosted, monkeypatch):
-    monkeypatch.setenv('FRETFLOW_DAILY_TOTAL', '3')
-    for _ in range(2):
-        job_id = hosted.post('/api/demo', json={}, headers=headers()).json()['id']
-        assert hosted.post('/api/demo', json={}, headers=headers()).status_code == 429
+@pytest.mark.parametrize('endpoint', ['upload', 'demo', 'reanalyze'])
+def test_daily_limits_and_existing_usage_never_block_analysis(hosted, monkeypatch, endpoint):
+    # A deployed worker may still have old env settings and exhausted counters.
+    monkeypatch.setenv('FRETFLOW_DAILY_TOTAL', '50')
+    monkeypatch.setenv('FRETFLOW_DAILY_PER_USER', '2')
+    with sqlite3.connect(service.RUNTIME.parent / 'hosting.sqlite3') as db:
+        db.execute('CREATE TABLE admissions (id TEXT PRIMARY KEY, owner TEXT NOT NULL, created REAL NOT NULL)')
+        db.executemany('INSERT INTO admissions VALUES (?, ?, ?)',
+                       [(str(i), 'a' * 64, time.time()) for i in range(55)])
+    # Small valid demo audio keeps this an admission test, without model work.
+    monkeypatch.setattr(service, 'make_demo', lambda _: [0.] * 22050)
+    original_id = None
+    if endpoint == 'reanalyze':
+        response = hosted.post('/api/demo', json={}, headers=headers())
+        assert response.status_code == 202, response.text
+        original_id = response.json()['id']
+        service.jobs[original_id].status = 'done'
+        service.jobs[original_id].result = {}
+    for _ in range(4):
+        if endpoint == 'upload':
+            response = hosted.post('/api/analyze', files={'file': ('test.wav', b'file')}, headers=headers())
+        elif endpoint == 'demo':
+            response = hosted.post('/api/demo', json={}, headers=headers())
+        else:
+            response = hosted.post(f'/api/jobs/{original_id}/reanalyze', json={'separation': 'none'}, headers=headers())
+        assert response.status_code == 202, response.text
+        job_id = response.json()['id']
         service.jobs[job_id].status = 'done'
         assert hosted.delete('/api/jobs/' + job_id, headers=headers()).status_code == 200
-    assert hosted.post('/api/demo', json={}, headers=headers()).status_code == 429
     assert hosted.post('/api/demo', json={}, headers=headers('b')).status_code == 202
-    assert hosted.post('/api/demo', json={}, headers=headers('c')).status_code == 429
+
+
+def test_active_job_backpressure_is_independent_of_daily_usage(hosted):
+    job_id = hosted.post('/api/demo', json={}, headers=headers()).json()['id']
+    response = hosted.post('/api/demo', json={}, headers=headers())
+    assert response.status_code == 429
+    assert response.json()['detail'] == 'You already have an active analysis. Please wait for it to finish.'
+    assert hosted.post('/api/demo', json={}, headers=headers('b')).status_code == 202
+    assert hosted.post('/api/demo', json={}, headers=headers('c')).status_code == 202
+    assert hosted.post('/api/demo', json={}, headers=headers('d')).status_code == 429
+    service.jobs[job_id].status = 'done'
+    assert hosted.post('/api/demo', json={}, headers=headers()).status_code == 202
 
 
 def test_download_ticket_is_scoped_and_allows_audio_ranges(hosted):

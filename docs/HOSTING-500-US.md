@@ -9,12 +9,12 @@ flowchart LR
     Browser --> Web[Next.js website and API]
     Web -->|Worker credential and session ownership| Worker[Python analysis worker]
     Browser -->|Short-lived upload and download tickets| Worker
-    Worker --> Store[Job files and SQLite quotas]
+    Worker --> Store[Job files and SQLite upload tickets]
 ```
 
 The web server signs an HttpOnly browser-session cookie. Hosted worker requests verify ownership before reading, editing or downloading a job. Upload tickets are single-use and expire after five minutes; download tickets are scoped to a file path and permit Range requests during their validity.
 
-This is browser-session isolation, not account login. Clearing cookies or changing devices/domains creates a new session. Per-session limits are not a reliable count of distinct people; the global quota bounds admitted work.
+This is browser-session isolation, not account login. Clearing cookies or changing devices/domains creates a new session. There are no daily analysis quotas for individual sessions or the whole service.
 
 ## Configuration
 
@@ -35,13 +35,11 @@ Large uploads and audio downloads go directly to the worker with short-lived aut
 | Executing analysis tasks | 1 |
 | Active tasks, running plus queued | 3 |
 | Active tasks per browser session | 1 |
-| Clip duration | 60 seconds |
+| Clip duration | 180 seconds |
 | Upload size | 95 MiB |
-| Rolling 24-hour quota per session | 2, including reanalysis and demos |
-| Global rolling 24-hour quota | 50 |
 | Media/results retention | 24 hours from job creation; active jobs are not removed mid-analysis |
 
-Most limits are environment-configurable; check the examples and `backend/hosting.py`. Quota admissions persist in SQLite. Deleting a result does not refund an admission, and failed accepted jobs consume quota. Job files store ownership for restart recovery. These mechanisms do not implement distributed leases or multi-machine scheduling.
+There is no daily usage counter. Legacy `FRETFLOW_DAILY_TOTAL` and `FRETFLOW_DAILY_PER_USER` settings and existing admission records are ignored. Upload ticket replay protection persists in SQLite. Queue backpressure, upload size and clip duration still apply; check `backend/app.py` and the environment examples. Job files store ownership for restart recovery. These mechanisms do not implement distributed leases or multi-machine scheduling.
 
 ## Run and recover
 
@@ -53,6 +51,6 @@ For broader use, validate real peak memory, latency, queue behavior, backup rete
 
 ## Verify
 
-After model/environment setup, run `npm run test:audio`. Hosted tests cover session ownership, quotas, scoped tickets, replay rejection and persistence. Check the complete browser upload → analyze → play → download flow, including an upload above the frontend provider's request-body limit, a second session that cannot access the first session's job, and quota exhaustion.
+After model/environment setup, run `npm run test:audio`. Hosted tests cover session ownership, repeated analysis beyond the former daily limits, scoped tickets, replay rejection and persistence. Check the complete browser upload → analyze → play → download flow, including an upload above the frontend provider's request-body limit, a second session that cannot access the first session's job, and repeated uploads, demos and reanalysis from a session with exhausted legacy admission records.
 
 Current frontend release checks are summarized in [maintenance notes](MAINTENANCE-2026-09-15.md). Raw verification artifacts stay private because they may contain recordings or authorization data.

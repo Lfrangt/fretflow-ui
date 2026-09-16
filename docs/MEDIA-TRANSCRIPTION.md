@@ -25,11 +25,11 @@ The model setup fetches the pinned ChordMini source and checkpoint and installs 
 ## Workflow
 
 1. Import a saved video (MP4, MOV, M4V, MKV, AVI, WebM, MPEG, MPG, 3GP) or audio (MP3, WAV, M4A, AAC, OGG, FLAC, AIFF, AIF). The codec must be supported by the installed FFmpeg build. Extension/MIME alone is not considered proof of readable audio.
-2. Optionally select the start and end in seconds. Local defaults allow 200 MiB uploads and clips up to 180 seconds. Hosted limits are configurable; the public pilot uses 95 MiB and 60 seconds. Longer files require selecting a shorter clip. The original mode extracts mono PCM at 22,050 Hz; vocal removal and guitar isolation preserve stereo PCM at 44,100 Hz before separation. Intermediate MP3 compression is unnecessary. The selected original audio can also be downloaded as MP3.
+2. Optionally select the start and end in seconds. Local defaults allow 200 MiB uploads and clips up to 180 seconds. Hosted limits are configurable; the public pilot uses 95 MiB and 180 seconds. Longer files require selecting a shorter clip. Before uploading, the browser checks the known duration and copies a supported video's encoded audio into an audio-only MP4, preserving its source timeline without re-encoding. Unsupported inputs retain the original upload path. Uploads show actual byte progress and can be cancelled; stalled requests time out without replaying their single-use ticket. The original mode extracts mono PCM at 22,050 Hz; vocal removal and guitar isolation preserve stereo PCM at 44,100 Hz before separation. Intermediate MP3 compression is unnecessary. The selected original audio can also be downloaded as MP3.
 3. **Chord chart · recommended** is the initial output, in the UI and API. It focuses on harmony and change timing for players who want their own voicings, picking patterns and fills. The browser saves the selected output mode. Staff notation/tabs, alone or alongside chords, require choosing a **Beta** option; the melody demo explicitly opts into Beta notes. Jobs are queued, polled and cancellable between processing stages. Invalid files and videos without audio fail visibly; canned practice chords are never substituted.
 4. Replay the source, slow playback, or loop a chord/note. Correct chord labels and key; edit note pitches/timing, remove false detections, and add missed notes.
 5. Review tempo, meter, first-beat offset, tuning and capo. Generate a sixteenth-note rhythm draft with rests, chords and ties. Fingering is a bounded heuristic, not visual recognition of the performer's hand. Out-of-range/unplaceable notes are reported and remain in the raw note data.
-6. alphaTab renders standard notation and guitar tablature, plays the score using its synthesizer, and provides printing/PDF and Guitar Pro `.gp` export. MusicXML comes from the same corrected musical data for editing in MuseScore/Guitar Pro. MIDI contains detected/edited note timing; it is not an engraved score format.
+6. **Export your analysis** downloads PDFs directly: a timed chord chart, staff + guitar tabs, staff only, or tabs only. PDF generation runs on demand in the browser and keeps staff systems together across pages. The same panel downloads Guitar Pro `.gp`, MusicXML, note MIDI, chord TXT/CSV and chord-guide MIDI. Note layouts and editable notation require a Beta note result. MusicXML and Guitar Pro use the current corrected score; MIDI retains detected/edited note timing. alphaTab also provides score playback and printing.
 7. Send the detected progression to the existing FretFlow fretboard. This is chord practice at the chosen tempo, not a claim to reproduce the recording's timing or original guitar voicings. The transcription view preserves recording timing and harmony labels.
 
 Chord results include a playing suggestion and a readable `.txt` chart with clip-relative times, harmony labels and review status. No bar lines, meter or original arrangement are invented for this chart. The CSV also retains review status. Model estimates and edited labels remain unverified; unclear segments stay marked for listening review. Reanalysis uses the selected output and preparation modes in a new draft, preserving the previous result.
@@ -72,7 +72,7 @@ Unit/integration tests exercise actual FFmpeg video extraction, clipping, missin
 
 ## Hosting boundary
 
-The public pilot uses a separately hosted model worker. Production intentionally has no default worker URL; forks must configure their own service. `FRETFLOW_HOSTED=1` enables signed browser-session ownership, per-session/global quotas and expiring upload/download tickets. Large media bypasses the Vercel function body. See [hosted configuration](HOSTING-500-US.md).
+The public pilot uses a separately hosted model worker. Production intentionally has no default worker URL; forks must configure their own service. `FRETFLOW_HOSTED=1` enables signed browser-session ownership and expiring upload/download tickets. Large media bypasses the Vercel function body. See [hosted configuration](HOSTING-500-US.md).
 
 Local development without hosted mode is intended for one trusted operator. Do not expose that mode as a public shared service. Hosted browser sessions are not account login or cross-device identity. Keep models and audio processing off the short-lived web rendering process.
 
@@ -105,10 +105,27 @@ can be reprocessed, but the UI explains that re-uploading the original preserves
 more detail. Records and stem files expire together after 24 hours.
 
 `tests/test_vocal_removal.py` checks source routing, stereo preservation, stem
-availability, reanalysis isolation/offsets, and failure behavior. The controlled
+availability, reanalysis isolation/offsets, cached-stem copying and failure behavior. The controlled
 80-note synthetic guitar + speech fixture improved onset/pitch F1 from .691 to
 .920 after removal (80 ms onset tolerance, no offset matching). This is evidence
 for that fixture only, not an accuracy estimate for real singing or mixed bands.
 User audio was also processed locally, without a reference score or a claim of
 improved accuracy. No-vocals accompaniment is not isolated guitar and may contain
 separation artifacts, bass, piano, or drums.
+
+## Processing performance
+
+The cloud launcher preloads installed models on the single inference executor.
+Torch and ONNX use `FRETFLOW_MODEL_THREADS`, bounded by CPU affinity, the cgroup
+quota and a maximum of eight threads. The generic runtime defaults to two;
+`scripts/run-cloud.sh` defaults to eight after measurement on the eight-vCPU
+Grok Box. Override it in the private `.runtime/hosted.env` for other hardware.
+`FRETFLOW_WARM_MODELS=0` disables preloading. Missing optional models do not prevent
+the other models from warming.
+
+Reanalyzing a completed recording with the same separation mode copies its
+completed stems into the new draft and skips separation. The new draft remains
+independent of the parent's expiry. Missing stems, a changed mode or historical
+mono input fall back to preparation. This reuse is restricted to the existing
+owner-checked reanalysis path. Output records include preparation and total
+processing times and whether stems were reused.

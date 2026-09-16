@@ -1,4 +1,4 @@
-"""Small single-worker hosting boundary: ownership, quotas and upload tickets."""
+"""Small single-worker hosting boundary: ownership and upload tickets."""
 from contextvars import ContextVar
 from contextlib import contextmanager
 import base64
@@ -29,26 +29,12 @@ def valid_owner(value):
 def connection(runtime: Path):
     runtime.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(runtime.parent / 'hosting.sqlite3', timeout=10)
-    db.execute('CREATE TABLE IF NOT EXISTS admissions (id TEXT PRIMARY KEY, owner TEXT NOT NULL, created REAL NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, expires REAL NOT NULL)')
     try:
         with db:
             yield db
     finally:
         db.close()
-
-
-def admit(runtime: Path, job_id: str, user: str):
-    now = time.time()
-    with connection(runtime) as db:
-        db.execute('BEGIN IMMEDIATE')
-        db.execute('DELETE FROM admissions WHERE created < ?', (now - 172800,))
-        counts = db.execute('SELECT COUNT(*), COALESCE(SUM(owner = ?), 0) FROM admissions WHERE created > ?', (user, now - 86400)).fetchone()
-        if counts[0] >= int(os.getenv('FRETFLOW_DAILY_TOTAL', '50')):
-            raise HTTPException(429, 'Daily pilot capacity reached. Please try again tomorrow.')
-        if counts[1] >= int(os.getenv('FRETFLOW_DAILY_PER_USER', '2')):
-            raise HTTPException(429, 'Your daily analysis limit is reached. Please try again tomorrow.')
-        db.execute('INSERT INTO admissions VALUES (?, ?, ?)', (job_id, user, now))
 
 
 def signed_ticket(user: str, origin: str, path='/api/analyze', method='POST'):

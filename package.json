@@ -37,8 +37,10 @@
     "@liquid-dom/core": "^0.1.0",
     "@liquid-dom/react": "^0.1.0",
     "@vercel/analytics": "1.6.1",
+    "mediabunny": "1.56.3",
     "motion": "latest",
     "next": "16.3.5",
+    "pdf-lib": "1.17.1",
     "react": "latest",
     "react-dom": "latest"
   },
