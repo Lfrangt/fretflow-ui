@@ -101,7 +101,8 @@ body { overflow: auto; }
 .separate-guitar .neck-surface { border-radius: 10px; }
 .whole-guitar .instrument-photo { filter: none; mask-image: none; -webkit-mask-image: none; }
 .photo-voicing { position: absolute; inset: 0; }
-.photo-voicing .practice-note { width: 28px; height: 28px; font-size: 12px; }
+.photo-voicing .photo-note-label { position: relative; z-index: 1; line-height: 1; }
+.photo-voicing .practice-note { width: 28px; height: 28px; font-size: 12px; z-index: auto; box-shadow: 0 0 0 1px #fff9, 0 1px 3px #0003; }
 .instrument-focus-button { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #6f675b; background: #ffffffc4; border: 1px solid #a2967a26; border-radius: 99px; padding: 10px 18px; font-size: 12px; }
 .practice-diagram { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .practice-diagram .chord-diagram-card { left: var(--page-gutter); right: auto; top: 92px; width: 106px; display: grid; transform: none; }
@@ -482,14 +483,3 @@ body { overflow: auto; }
   .score-import-steps li > label { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
   .score-import-steps input { width: 80px; }
 }
-
-/* The desktop camera crops a larger neck around the active hand position. */
-.desktop-camera .instrument-composition { top: 0; left: 0; transform-origin: 0 0; }
-.desktop-camera .neck-caption { display: none; }
-.desktop-camera .focus-current-chord { z-index: 2; }
-.desktop-camera .instrument-photo-frame, .desktop-camera .neck-joint { display: none; }
-.desktop-camera .learning-neck .practice-note { width: var(--camera-note-size); height: var(--camera-note-size); font-size: var(--camera-label-size); }
-.desktop-camera .neck-ruler { font-size: var(--camera-label-size); top: var(--camera-ruler-top); }
-.desktop-camera .neck-inlays b { width: var(--camera-inlay-size); height: var(--camera-inlay-size); }
-.desktop-camera .neck-strings small { font-size: var(--camera-label-size); }
-.desktop-camera .neck-frets i { border-right-width: var(--camera-fret-width); }

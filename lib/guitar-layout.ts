@@ -9,6 +9,16 @@ export const PRACTICE_FRET_COUNT = 21;
 /** Equal temperament: the 12th fret divides the vibrating string in half. */
 export const fretDistance = (fret: number) => 1 - 2 ** (-Math.max(0, fret) / 12);
 
+/** Follow the photographed string taper instead of applying the teaching grid's width. */
+export function photoMarkerPosition(guitar: DreamGuitar, string: number, fret: number) {
+  const distance = fret > 0 ? (fretDistance(fret - 1) + fretDistance(fret)) / 2 : 0;
+  const lane = rightHandedStringPosition(string);
+  const axes = guitar.photoStrings;
+  const top = axes ? axes.nut[0] + (axes.bridge[0] - axes.nut[0]) * distance : guitar.centerY - .4 / guitar.photoScale;
+  const bottom = axes ? axes.nut[1] + (axes.bridge[1] - axes.nut[1]) * distance : guitar.centerY + .4 / guitar.photoScale;
+  return { x: guitar.nutX + distance * guitar.scaleLength, y: (top + (bottom - top) * lane) * guitar.aspect };
+}
+
 /** Cell edges and centre, normalised to the visible length of the full neck. */
 export function fretCell(fret: number, fretCount = PRACTICE_FRET_COUNT) {
   const end = Math.min(fretCount, Math.max(1, fret));

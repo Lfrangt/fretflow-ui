@@ -17,8 +17,18 @@ function load(name) {
 }
 
 const { dreamGuitars } = load('dream-guitars');
-const { fretCell, fretDistance, fretboardWindow, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
+const { fretCell, fretDistance, photoMarkerPosition, fretboardWindow, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+
+test('photo C shape lands on measured strings instead of above the photographed neck', () => {
+  const guitar = dreamGuitars[0];
+  // Pixel landmarks in the actual rotated 2700 x 1040 photo, near frets 8–10.
+  for (const [string, fret, x, y] of [[1, 8, 1143, 394], [2, 8, 1143, 416], [3, 9, 1207, 439], [4, 10, 1267, 462]]) {
+    const position = photoMarkerPosition(guitar, string, fret);
+    assert.ok(Math.abs(position.x * 2700 - x) < 3, `string ${string} fret position`);
+    assert.ok(Math.abs(position.y * 1040 - y) < 2, `string ${string} photograph axis`);
+  }
+});
 
 test('right-handed horizontal fretboards put the treble strings above the bass, like TAB', () => {
   const openD = [
