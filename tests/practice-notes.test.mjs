@@ -26,3 +26,12 @@ test('upper-position suggestions retain unavoidable low notes at their true octa
  assert.ok(result.filter(p=>p.midi>43).every(p=>p.fret>=8&&p.fret<=17));
  assert.deepEqual(notePositions([]),[]);
 });
+test('capo positions preserve sounding pitch at the physical fret and cannot use frets below the capo', () => {
+ const positions=notePositions([42,64,66],'standard',{min:2,max:7},2);
+ const open=[0,64,59,55,50,45,40];
+ assert.equal(positions.length,3);
+ for(const p of positions){assert.equal(open[p.string]+p.fret,p.midi);assert.ok(p.fret>=2);}
+ assert.equal(positions.find(p=>p.midi===42).fret,2);
+ assert.deepEqual(notePositions([40],'standard',{min:2,max:7},2),[]);
+ assert.equal(notePositions([40],'drop-d',{min:2,max:7},2)[0].fret,2);
+});

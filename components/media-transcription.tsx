@@ -8,6 +8,8 @@ import { useLanguage, LanguageSwitcher } from "./language-provider";
 import { useEffect, useRef, useState } from "react";
 import { NotationScore } from "./notation-score";
 import { NoteAttackReview } from "./note-attack-review";
+import { SoloReview } from "./solo-review";
+import { practiceEligibility } from "@/lib/solo-review";
 import { TranscriptionExports } from "./transcription-exports";
 import { prepareMediaUpload, validateClip, type UploadProgress } from "@/lib/media-upload";
 import { api, seconds, TRANSCRIPTION_API, NOTATION_BETA_NOTICE, type AnalysisMode, type DetectedNote, type Job, type ScoreDraft, type Transcription, type Stem } from "@/lib/transcription";
@@ -17,8 +19,9 @@ const pitches = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 const pitchName = (midi: number) => `${pitches[midi % 12]}${Math.floor(midi / 12) - 1}`;
 const stemLabels: Record<Stem, string> = { instrumental: "Accompaniment · vocals removed", guitar: "Guitar", vocals: "Vocals", drums: "Drums", bass: "Bass", piano: "Piano", other: "Other instruments" };
 
-export function MediaTranscription({ open, onClose, onPractice }: {
+export function MediaTranscription({ open, onClose, onPractice, onResultChange }: {
   open: boolean; onClose: () => void; onPractice: (result: Transcription) => void;
+  onResultChange?: (result: Transcription) => void;
 }) {
   const { t, localize } = useLanguage();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -27,6 +30,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   const resultView = useRef<HTMLDivElement>(null);
   const chordsView = useRef<HTMLElement>(null);
   const scoreView = useRef<HTMLElement>(null);
+  const soloView = useRef<HTMLDivElement>(null);
   const notesView = useRef<HTMLDetailsElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
@@ -40,6 +44,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   const [separationReady, setSeparationReady] = useState(false);
   const [vocalsReady, setVocalsReady] = useState(false);
   const [tracksReady, setTracksReady] = useState(false);
+  const [soloReady, setSoloReady] = useState(false);
   const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
   const [listenSource, setListenSource] = useState<"original" | Stem>("original");
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -55,7 +60,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   const [result, setResult] = useState<Transcription | null>(null);
   const [score, setScore] = useState<ScoreDraft | null>(null);
   const [catalog, setCatalog] = useState<{ raw: string; label: string }[]>([]);
-  const [history, setHistory] = useState<{ id: string; name: string; separation?: string }[]>([]);
+  const [history, setHistory] = useState<{ id: string; name: string; separation?: string; mode?: AnalysisMode }[]>([]);
   const [limits, setLimits] = useState({ max_bytes: 200 * 1024 * 1024, max_duration: 180 });
   const [hosted, setHosted] = useState(false);
   const [limitsReady, setLimitsReady] = useState(false);
@@ -64,17 +69,39 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   const [loop, setLoop] = useState<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
+    if (!open || !loop || !result) return;
+    let frame = 0;
+    let displayed = -1;
+    const follow = () => {
+      const audio = player.current;
+      if (audio && !audio.paused && !audio.seeking) {
+        // timeupdate is too infrequent to stop at a short Solo note's boundary.
+        if (audio.currentTime >= loop.end) audio.currentTime = loop.start;
+        if (Math.abs(audio.currentTime - displayed) >= .03) {
+          displayed = audio.currentTime;
+          setTime(displayed);
+        }
+      }
+      frame = requestAnimationFrame(follow);
+    };
+    frame = requestAnimationFrame(follow);
+    return () => cancelAnimationFrame(frame);
+  }, [open, loop, result?.id]);
+
+  useEffect(() => {
     return () => uploadController.current?.abort();
   }, []);
   useEffect(() => {
     try {
       const saved = localStorage.getItem("fretflow-analysis-mode");
-      if (saved === "chords" || saved === "both" || saved === "notes") setMode(saved);
+      if (saved === "chords" || saved === "both" || saved === "notes" || saved === "solo") setMode(saved);
+      if (saved === "solo") setSeparation("none");
     } catch { /* The default remains usable when browser storage is unavailable. */ }
   }, []);
 
   function chooseMode(next: AnalysisMode) {
     setMode(next);
+    if (next === "solo" && mode !== "solo") setSeparation("none");
     try { localStorage.setItem("fretflow-analysis-mode", next); } catch { /* Keep the choice for this session. */ }
   }
 
@@ -95,8 +122,8 @@ export function MediaTranscription({ open, onClose, onPractice }: {
     if (!open) return;
     setError("");
     setLimitsReady(false);
-    void Promise.all([api<typeof catalog>("/catalog"), api<typeof history>("/jobs"), api<{ local: boolean; max_bytes: number; max_duration: number; features?: { note_tracks?: boolean }; engines: { demucs?: boolean; vocal_removal?: boolean } }>("/health")])
-      .then(([choices, records, health]) => { setCatalog(choices); setHistory(records); setHosted(health.local === false); setLimits({ max_bytes: health.max_bytes, max_duration: health.max_duration }); setSeparationReady(health.engines.demucs === true); setVocalsReady(health.engines.vocal_removal === true); setTracksReady(health.features?.note_tracks === true); setLimitsReady(true); })
+    void Promise.all([api<typeof catalog>("/catalog"), api<typeof history>("/jobs"), api<{ local: boolean; max_bytes: number; max_duration: number; features?: { note_tracks?: boolean; solo?: boolean }; engines: { demucs?: boolean; vocal_removal?: boolean } }>("/health")])
+      .then(([choices, records, health]) => { setCatalog(choices); setHistory(records); setHosted(health.local === false); setLimits({ max_bytes: health.max_bytes, max_duration: health.max_duration }); setSeparationReady(health.engines.demucs === true); setVocalsReady(health.engines.vocal_removal === true); setTracksReady(health.features?.note_tracks === true); setSoloReady(health.features?.solo === true); setLimitsReady(true); })
       .catch((e) => setError(e.message));
   }, [open, result?.id]);
   useEffect(() => {
@@ -143,6 +170,8 @@ export function MediaTranscription({ open, onClose, onPractice }: {
 
   async function start(sample?: string) {
     if (busy || !limitsReady) return;
+    const analysisMode = sample === "melody" ? "solo" : sample === "harmony" ? "chords" : mode;
+    if (analysisMode === "solo" && !soloReady) { setError("Solo analysis is not available on this service yet. Update the analysis service to use this mode."); return; }
     if (!sample && !file) { input.current?.click(); return; }
     const a = Number(clipStart), b = clipEnd === "" ? null : Number(clipEnd);
     try { if (!sample) validateClip(a, b, mediaDuration, limits.max_duration); }
@@ -151,8 +180,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
     dialog.current?.querySelectorAll("audio, video").forEach(media => (media as HTMLMediaElement).pause());
     const controller = new AbortController(); uploadController.current = controller;
     setUpload(sample ? null : { stage: "preparing", loaded: 0, total: 1, originalBytes: file!.size, bytesPerSecond: 0 });
-    const analysisMode = sample === "melody" ? "notes" : mode;
-    if (sample === "melody") chooseMode("notes");
+    if (sample) chooseMode(analysisMode);
     try {
       let response: { id: string };
       if (sample) response = await api("/demo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sample, mode: analysisMode }) });
@@ -173,7 +201,8 @@ export function MediaTranscription({ open, onClose, onPractice }: {
   }
 
   async function reanalyze() {
-    if (!result || busy || saving) return;
+    if (!result || busy || saving || !limitsReady) return;
+    if (mode === "solo" && !soloReady) { setError("Solo analysis is not available on this service yet. Update the analysis service to use this mode."); return; }
     setBusy(true); setError(""); player.current?.pause();
     try {
       const next = await api<{ id: string }>(`/jobs/${result.id}/reanalyze`, {
@@ -190,6 +219,7 @@ export function MediaTranscription({ open, onClose, onPractice }: {
     try {
       const next = await api<Transcription>(`/jobs/${result.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: result.revision, ...values }) });
       setResult(next); setSelectedNotes([]);
+      onResultChange?.(next);
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
   }
@@ -210,11 +240,22 @@ export function MediaTranscription({ open, onClose, onPractice }: {
     setListenSource(source);
   }
 
+  function editNote(index: number) {
+    setNotePage(Math.floor(index / 20));
+    if (notesView.current) {
+      notesView.current.open = true;
+      requestAnimationFrame(() => notesView.current?.querySelector(`[data-note-index="${index}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
+    }
+  }
+
   const video = file && (file.type.startsWith("video/") || /\.(mp4|mov|m4v|mkv|avi|webm|mpeg|mpg|3gp)$/i.test(file.name));
   const download = (kind: string) => `${TRANSCRIPTION_API}/jobs/${result?.id}/export/${kind}`;
   const activeChord = result?.chords.findIndex((chord) => chord.start <= time && time < chord.end);
   const playbackUrl = result ? `${TRANSCRIPTION_API}/jobs/${result.id}/${listenSource === "original" ? "audio" : `stems/${listenSource}`}` : "";
-  const hasNotation = result && (result.mode === "notes" || result.mode === "both" || result.notes.length > 0);
+  const hasNotation = result && (result.mode === "notes" || result.mode === "both" || result.mode === "solo" || result.notes.length > 0);
+  const soloUnavailable = mode === "solo" && !soloReady;
+  const canPractice = practiceEligibility(result);
+  const practiceNotes = result?.mode === "solo" || !canPractice.chords;
 
   return <dialog ref={dialog} className="transcription-dialog" aria-labelledby="transcription-title" onCancel={onClose}>
     <header className="transcription-header">
@@ -234,20 +275,22 @@ export function MediaTranscription({ open, onClose, onPractice }: {
         </div>
         <div className="media-options">
           <label>{t("What would you like to learn?")}<select value={mode} onChange={(e) => chooseMode(e.target.value as AnalysisMode)} disabled={busy} aria-describedby="analysis-mode-help">
-            <option value="chords">{t("Chord chart · recommended")}</option><option value="both">{t("Chord chart + staff / tabs (Beta)")}</option><option value="notes">{t("Staff / tabs only (Beta)")}</option>
+            <option value="chords">{t("Chord chart · recommended")}</option><option value="solo" disabled={!soloReady}>{t("Solo · single notes (Beta)")}</option><option value="both">{t("Chord chart + staff / tabs (Beta)")}</option><option value="notes">{t("Staff / tabs only (Beta)")}</option>
           </select></label>
-          <div className="transcription-recommendation" id="analysis-mode-help"><strong>{t(mode === "chords" ? "Recommended for playing your own version" : "Note-by-note study · Beta")}</strong><p>{t(mode === "chords" ? "Learn the chord changes and their timing, then choose your own voicings, picking patterns and fills. Your output preference is saved on this browser." : NOTATION_BETA_NOTICE)}</p></div>
+          <div className="transcription-recommendation" id="analysis-mode-help"><strong>{t(mode === "chords" ? "Recommended for playing your own version" : mode === "solo" ? "Learn one guitar melody · Beta" : "Note-by-note study · Beta")}</strong><p>{t(mode === "chords" ? "Learn the chord changes and their timing, then choose your own voicings, picking patterns and fills. Your output preference is saved on this browser." : mode === "solo" ? "Select a short solo passage with one note at a time. Start with a clean guitar recording and original audio; review estimated pitches, timing and suggested positions by ear. Your mode is saved on this browser." : NOTATION_BETA_NOTICE)}</p></div>
+          {limitsReady && !soloReady && <small className="transcription-hint" role="status">{t("Solo analysis is not available on this service yet. Update the analysis service to use this mode.")}</small>}
           <label>{t("Audio preparation")}<select value={separation} onChange={(e) => setSeparation(e.target.value)} disabled={busy}>
             <option value="none">{t("Original audio · solo instrument")}</option>
-            <option value="instrumental" disabled={!vocalsReady}>{t("Remove vocals · keep accompaniment (recommended)")}</option>
+            <option value="instrumental" disabled={!vocalsReady}>{t(mode === "solo" ? "Remove vocals · keep accompaniment" : "Remove vocals · keep accompaniment (recommended)")}</option>
             <option value="guitar" disabled={!separationReady}>{t("Isolate guitar · full mix (Beta)")}</option>
           </select></label>
-          <small className="transcription-hint">{t(separation === "instrumental" ? "Remove singing and speech before analyzing chords and notes. Other instruments remain; separation takes extra time." : separation === "guitar" ? "Notes use the guitar stem; chords use the full mix. Separation takes extra time and can lose quiet notes." : "Use original audio for a clean guitar recording.")}{separation === "guitar" && !separationReady && <> {t("Guitar separation is not available on this analysis service yet.")}</>}{separation === "instrumental" && !vocalsReady && <> {t("Vocal removal is not available on this analysis service yet.")}</>}</small>
+          <small className="transcription-hint">{t(separation === "instrumental" ? "Remove singing and speech before analyzing chords and notes. Other instruments remain; separation takes extra time." : separation === "guitar" ? mode === "solo" ? "Solo uses the guitar stem. Separation takes extra time and can lose quiet notes; other guitars can remain." : "Notes use the guitar stem; chords use the full mix. Separation takes extra time and can lose quiet notes." : "Use original audio for a clean guitar recording.")}{separation === "guitar" && !separationReady && <> {t("Guitar separation is not available on this analysis service yet.")}</>}{separation === "instrumental" && !vocalsReady && <> {t("Vocal removal is not available on this analysis service yet.")}</>}</small>
+          {mode === "solo" && <small className="transcription-hint">{t("Vocals or a band in the clip? Separation may help, but it cannot reliably separate a lead guitar from a second guitar. Solo mode follows one pitch at a time; chords and double stops need a different mode.")}</small>}
           <details className="media-range"><summary>{t("Trim clip")} <span>{clipStart === "0" && clipEnd === "" ? t("Full file by default") : `${clipStart}s — ${clipEnd || t("end")}`}</span></summary><div className="media-clip"><label>{t("Start time (seconds)")}<input type="number" min="0" step="0.1" value={clipStart} onChange={(e) => setClipStart(e.target.value)} disabled={busy} /></label>
             <label>{t("End time (seconds)")}<input type="number" min="0" step="0.1" placeholder={t("End of file")} value={clipEnd} onChange={(e) => setClipEnd(e.target.value)} disabled={busy} /></label></div></details>
-          <p className="transcription-hint">{t("Two guitars in one recording? Guitar isolation keeps them in one stem. Assign notes to Guitar 1 and Guitar 2 after analysis for separate score exports; automatic separation of two guitars is not available.")}</p>
-          <button className="transcription-primary" onClick={() => void start()} disabled={busy || !limitsReady || (separation === "instrumental" && !vocalsReady) || (separation === "guitar" && !separationReady)}>{busy ? (upload ? t(upload.stage === "preparing" ? "Preparing audio…" : "Uploading file…") : t("Analyzing…")) : t("Start analysis")}</button>
-          <div className="transcription-actions"><button disabled={busy} onClick={() => void start("harmony")}>{t("Try chord demo")}</button><button disabled={busy} onClick={() => void start("melody")}>{t("Try melody demo (Beta)")}</button></div>
+          {mode !== "solo" && <p className="transcription-hint">{t("Two guitars in one recording? Guitar isolation keeps them in one stem. Assign notes to Guitar 1 and Guitar 2 after analysis for separate score exports; automatic separation of two guitars is not available.")}</p>}
+          <button className="transcription-primary" onClick={() => void start()} disabled={busy || !limitsReady || soloUnavailable || (separation === "instrumental" && !vocalsReady) || (separation === "guitar" && !separationReady)}>{busy ? (upload ? t(upload.stage === "preparing" ? "Preparing audio…" : "Uploading file…") : t("Analyzing…")) : t("Start analysis")}</button>
+          <div className="transcription-actions"><button disabled={busy || !limitsReady} onClick={() => void start("harmony")}>{t("Try chord demo")}</button><button disabled={busy || !limitsReady || !soloReady} onClick={() => void start("melody")}>{t("Try Solo demo (Beta)")}</button></div>
         </div>
       </section>
       <p className="transcription-hint">{t("Save TikTok or Douyin videos as files before importing. Share links are not supported yet. Audio is extracted directly; no MP3 conversion needed.")}</p>
@@ -259,33 +302,28 @@ export function MediaTranscription({ open, onClose, onPractice }: {
         {busy && !jobId && upload && <button onClick={() => uploadController.current?.abort()}>{t("Cancel upload")}</button>}
         {busy && jobId && <button onClick={() => void api(`/jobs/${jobId}`, { method: "DELETE" }).catch((e) => setError(e.message))}>{t("Cancel analysis")}</button>}</div>}
       {error && <div className="transcription-error" role="alert">{localize(error)}{jobId && !busy && <button onClick={() => { setError(""); setPoll((n) => n + 1); }}>{t("Reload result")}</button>}</div>}
-      {history.length > 0 && <details className="transcription-history"><summary>{t(hosted ? "Recent records for this browser (kept for 24 hours)" : "Recent local records (kept for 24 hours)")}</summary><div className="transcription-actions">{history.map((item) => <button disabled={busy} key={item.id} onClick={() => { setResult(null); setJobId(item.id); setPoll((n) => n + 1); }}>{localize(item.name)} · {t(item.separation === "instrumental" ? "Accompaniment · vocals removed" : item.separation === "guitar" ? "Guitar" : "Original audio")}</button>)}</div></details>}
+      {history.length > 0 && <details className="transcription-history"><summary>{t(hosted ? "Recent records for this browser (kept for 24 hours)" : "Recent local records (kept for 24 hours)")}</summary><div className="transcription-actions">{history.map((item) => <button disabled={busy} key={item.id} onClick={() => { setResult(null); setJobId(item.id); setPoll((n) => n + 1); }}>{localize(item.name)}{item.mode === "solo" && <> · {t("Solo notes")}</>} · {t(item.separation === "instrumental" ? "Accompaniment · vocals removed" : item.separation === "guitar" ? "Guitar" : "Original audio")}</button>)}</div></details>}
       {result && <div className="transcription-result" ref={resultView}>
-        <header className="transcription-result-head"><div><span>{t("Analysis draft · listen to verify")}</span><h3>{localize(result.name)}</h3><p>{seconds(result.duration)} · {t(result.chords.length === 1 ? "{count} chord segment" : "{count} chord segments", { count: result.chords.length })} · {t(result.notes.filter(n => !n.excluded).length === 1 ? "{count} note" : "{count} notes", { count: result.notes.filter(n => !n.excluded).length })}</p></div>
-          <button className="transcription-primary" disabled={!result.chords.some((c) => c.root !== null)} onClick={() => onPractice(result)}>{t("Practice these chords on the fretboard")}</button></header>
-        <nav className="transcription-result-nav" aria-label={t("Analysis result navigation")}>{result.chords.length > 0 && <button onClick={() => chordsView.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t("Chord chart")} <span>{result.chords.length}</span></button>}{hasNotation && <button onClick={() => scoreView.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t("Staff / tabs (Beta)")} <span>↗</span></button>}<small>{t("Listen to verify the harmony. Make the arrangement your own.")}</small></nav>
+        <header className="transcription-result-head"><div><span>{t("Analysis draft · listen to verify")}</span><h3>{localize(result.name)}</h3><p>{seconds(result.duration)} · {result.mode === "solo" ? t("Solo notes") : t(result.chords.length === 1 ? "{count} chord segment" : "{count} chord segments", { count: result.chords.length })} · {t(result.notes.filter(n => !n.excluded).length === 1 ? "{count} note" : "{count} notes", { count: result.notes.filter(n => !n.excluded).length })}</p></div>
+          <button className="transcription-primary" disabled={saving || busy || !canPractice.allowed} onClick={() => onPractice(result)}>{t(practiceNotes ? "Practice these notes on the fretboard" : "Practice these chords on the fretboard")}</button></header>
+        <nav className="transcription-result-nav" aria-label={t("Analysis result navigation")}>{result.mode === "solo" && <button onClick={() => soloView.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t("Solo analysis")}</button>}{result.chords.length > 0 && <button onClick={() => chordsView.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t("Chord chart")} <span>{result.chords.length}</span></button>}{hasNotation && <button onClick={() => scoreView.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>{t("Staff / tabs (Beta)")} <span>↗</span></button>}<small>{t(result.mode === "solo" ? "Listen, check each note, then practice a phrase." : "Listen to verify the harmony. Make the arrangement your own.")}</small></nav>
         <TranscriptionExports key={result.id} result={result} score={score} saving={saving} />
         <section className="transcription-playback" aria-label={t("Compare audio tracks")}>
-          <div className="transcription-actions"><button disabled={busy || saving || (separation === "instrumental" && !vocalsReady) || (separation === "guitar" && !separationReady)} onClick={() => void reanalyze()}>{t("Reanalyze with selected options")}</button>
+          <div className="transcription-actions"><button disabled={busy || saving || !limitsReady || soloUnavailable || (separation === "instrumental" && !vocalsReady) || (separation === "guitar" && !separationReady)} onClick={() => void reanalyze()}>{t("Reanalyze with selected options")}</button>
             {result.parent_id && <button disabled={busy} onClick={() => { setResult(null); setJobId(result.parent_id!); setPoll((n) => n + 1); }}>{t("Open previous analysis")}</button>}
           </div>
           <small>{t("Reanalysis creates a new draft and keeps your previous edits.")}</small>
           <label>{t("Clip audio · starting at {time} in the source file", { time: seconds(result.clip_start || 0) })}</label>
-          {result.separation?.enabled && <><label>{t("Listen to")}<select aria-label={t("Listen to")} value={listenSource} onChange={(e) => switchSource(e.target.value as "original" | Stem)}><option value="original">{t("Original audio")}</option>{result.separation.stems.map((stem) => <option key={stem} value={stem}>{t(stemLabels[stem])}</option>)}</select></label><small>{t(result.separation.notes_source === "instrumental" ? "Chords and notes use the accompaniment. Switch to original audio or vocals to compare at the same position." : "Notes use the guitar stem. Switch tracks to compare at the same position.")}</small></>}
-          <audio ref={player} key={result.id} src={playbackUrl} controls onPlay={() => { setAudioPlayToken(token => token + 1); setToneStopToken(token => token + 1); }} onLoadedMetadata={(e) => { const audio = e.currentTarget; audio.playbackRate = playbackSpeed; const resume = resumePlayback.current; resumePlayback.current = null; if (resume) { audio.currentTime = Math.min(resume.time, Math.max(0, audio.duration - .01)); if (resume.playing) void audio.play().catch(() => setError("请点击原音播放器的播放按钮。")); } }} onTimeUpdate={(e) => { const audio = e.currentTarget; if (loop && audio.currentTime >= loop.end) audio.currentTime = loop.start; setTime(audio.currentTime); }} onEnded={() => { if (loop && player.current) { player.current.currentTime = loop.start; void player.current.play(); } }} />
+          {result.separation?.enabled && <><label>{t("Listen to")}<select aria-label={t("Listen to")} value={listenSource} onChange={(e) => switchSource(e.target.value as "original" | Stem)}><option value="original">{t("Original audio")}</option>{result.separation.stems.map((stem) => <option key={stem} value={stem}>{t(stemLabels[stem])}</option>)}</select></label><small>{t(result.separation.notes_source === "instrumental" ? result.mode === "solo" ? "Solo notes use the accompaniment. Switch to original audio or vocals to compare at the same position." : "Chords and notes use the accompaniment. Switch to original audio or vocals to compare at the same position." : "Notes use the guitar stem. Switch tracks to compare at the same position.")}</small></>}
+          <audio ref={player} key={result.id} src={playbackUrl} controls onPlay={() => { setAudioPlayToken(token => token + 1); setToneStopToken(token => token + 1); }} onLoadedMetadata={(e) => { const audio = e.currentTarget; audio.playbackRate = playbackSpeed; const resume = resumePlayback.current; resumePlayback.current = null; if (resume) { audio.currentTime = Math.min(resume.time, Math.max(0, audio.duration - .01)); if (resume.playing) void audio.play().catch(() => setError("请点击原音播放器的播放按钮。")); } }} onTimeUpdate={(e) => { const audio = e.currentTarget; if (loop && audio.currentTime >= loop.end) audio.currentTime = loop.start; setTime(audio.currentTime); }} onEnded={() => { if (loop && player.current) { player.current.currentTime = loop.start; void player.current.play().catch(() => setError("Press Play in the original audio player.")); } }} />
           <div className="transcription-actions"><label>{t("Playback speed")}<select value={playbackSpeed} onChange={(e) => { const speed = Number(e.target.value); setPlaybackSpeed(speed); if (player.current) player.current.playbackRate = speed; }}><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1">1×</option></select></label>
             {listenSource !== "original" && <a href={playbackUrl} download>{t("Download selected stem WAV")}</a>}
             {loop && <button onClick={() => setLoop(null)}>{t("Stop loop")} {seconds(loop.start)}–{seconds(loop.end)}</button>}
             <a href={download("source.mp3")} download>{t("Download clip MP3")}</a><a href={download("json")} download>{t("Save analysis data")}</a>
           </div>
         </section>
-        {hasNotation && result.notes.length > 0 && <NoteAttackReview key={result.id} notes={result.notes} duration={result.duration} onSeek={seek} onEdit={index => {
-          setNotePage(Math.floor(index / 20));
-          if (notesView.current) {
-            notesView.current.open = true;
-            requestAnimationFrame(() => notesView.current?.querySelector(`[data-note-index="${index}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
-          }
-        }} />}
+        {result.mode === "solo" && <div ref={soloView} className="solo-review-anchor"><SoloReview key={result.id} result={result} time={time} onSeek={seek} onEdit={editNote} /></div>}
+        {hasNotation && result.mode !== "solo" && result.notes.length > 0 && <NoteAttackReview key={result.id} notes={result.notes} duration={result.duration} onSeek={seek} onEdit={editNote} />}
         {open && <details className="tone-guide-details"><summary>{t("Tone Studio")}</summary><ToneGuide stopToken={toneStopToken} onBeforePlay={() => { player.current?.pause(); setAudioPlayToken(token => token + 1); }} /></details>}
         <details className="transcription-caveats"><summary>{t("What to review in this analysis")}</summary>{result.warnings.map((warning) => <p key={warning}>{localize(warning)}</p>)}</details>
         {result.chords.length > 0 && <section className="transcription-chords" ref={chordsView}><header><h3>{t("Chord chart")}</h3><div className="transcription-actions"><a href={download("chords.txt")} download>{t("Download chord chart")}</a><a href={download("chords.csv")} download>{t("Export chord table")}</a></div></header>

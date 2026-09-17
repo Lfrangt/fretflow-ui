@@ -18,6 +18,7 @@ import { ChordThumbnail } from "./chord-thumbnail";
 import { GuitarStage } from "./guitar-stage";
 import { WorkspaceSheet } from "./workspace-sheet";
 import { WorkspaceIcon, type IconName } from "./workspace-icon";
+import type { Transcription } from "@/lib/transcription";
 import type { KeyName } from "@/lib/harmony";
 import { KEYS, chordDegree, detectKey, presetKeys } from "@/lib/harmony";
 import { practicePerformance, soundingMidi, midiName, notePositions, type PracticePerformance } from "@/lib/practice-performance";
@@ -432,6 +433,8 @@ export function GuitarWorkspace() {
   const [keyChoice, setKeyChoice] = useState<"auto" | KeyName>("auto");
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
+  const performanceData = importedPerformance?.progression === progressionText ? importedPerformance.data : null;
+  const notePractice = performanceData?.timelineKind === "notes";
   const progression = useMemo(() => parseProgression(progressionText), [progressionText]);
   const effectiveKey = useMemo<KeyName>(() => {
     if (keyChoice !== "auto") return keyChoice;
@@ -443,7 +446,9 @@ export function GuitarWorkspace() {
     [effectiveKey, progression, importedHarmony, progressionText]
   );
   const displayedKey = importedHarmony?.progression === progressionText ? importedHarmony.key : effectiveKey;
-  const activeChord = progression[activeIndex] ?? progression[0] ?? "Am7";
+  const activeChord = progression[activeIndex] ?? progression[0] ?? "";
+  const practiceLabels = notePractice ? performanceData.steps.map(step => step.label) : progression;
+  const stepCount = practiceLabels.length;
   const activeDegree = degrees[activeIndex] ?? degrees[0] ?? "?";
   const chartSteps = importedChart?.progression === progressionText ? importedChart.steps : null;
   const choicesByChord = useMemo(() => new Map([...new Set(progression)].map(chord => [chord, voicingCandidates(chord, fretRange, voicings[chord] ?? [])])), [progression, fretRange]);
@@ -456,31 +461,33 @@ export function GuitarWorkspace() {
   const chordReferenceTime = performanceDataTime();
   function performanceDataTime() {
     const data = importedPerformance?.progression === progressionText ? importedPerformance.data : null;
-    if (data) return data.sourceStart + data.offset + (data.chords[activeIndex]?.start ?? 0);
+    if (data) return data.sourceStart + data.offset + (data.steps[activeIndex]?.start ?? 0);
     return progression.slice(0, activeIndex).reduce((sum, _, i) => sum + (importedTiming?.progression === progressionText ? importedTiming.beats[i] ?? 2 : 2), 0) * 60 / bpm;
   }
   const beatMs = 60000 / bpm;
   const chordDurationMs = beatMs * (importedTiming?.progression === progressionText ? importedTiming.beats[activeIndex] ?? 2 : 2);
-  const loopEnd = (loopStart + 1) % progression.length;
+  const loopEnd = performanceData ? Math.min(loopStart + 1, Math.max(0, stepCount - 1)) : (loopStart + 1) % Math.max(1, stepCount);
   const activeTone = tonePresets.find((tone) => tone.id === toneId) ?? tonePresets[0];
   const activePalette = markerPalettes.find((palette) => palette.id === paletteId) ?? markerPalettes[0];
-  const performanceData = importedPerformance?.progression === progressionText ? importedPerformance.data : null;
   const followsOriginal = Boolean(performanceData?.originalUrl && performanceMode === "original");
   const followsNotes = Boolean(performanceData?.notes.length && performanceMode === "notes");
   const followsPerformance = followsOriginal || followsNotes;
+  const showsNotePositions = followsNotes || notePractice;
   const noteAudio = usePracticePerformance(performanceData, {
     playing: isPlaying, enabled: followsNotes, audible: soundEnabled, bpm,
-    loop: loopMode, loopStart, onChord: setActiveIndex,
+    loop: loopMode, loopStart, onStep: setActiveIndex,
     onNotes: midis => setPlayingMidis(previous => previous.join() === midis.join() ? previous : midis),
     onError: () => setIsPlaying(false)
   });
   const originalAudio = usePracticeRecording(performanceData, {
     playing: isPlaying, enabled: followsOriginal, audible: soundEnabled, bpm,
-    loop: loopMode, loopStart, onChord: setActiveIndex, onError: () => setIsPlaying(false)
+    loop: loopMode, loopStart, onStep: setActiveIndex,
+    onNotes: midis => setPlayingMidis(previous => previous.join() === midis.join() ? previous : midis),
+    onError: () => setIsPlaying(false)
   });
   const performanceAudio = followsOriginal ? originalAudio : noteAudio;
   const playbackLabel = followsOriginal ? "Original recording" : followsNotes ? "Synthesized guitar" : activeTone.name;
-  const playedPositions = useMemo(() => notePositions(playingMidis, performanceData?.tuning, fretRange), [playingMidis, performanceData?.tuning, fretRange]);
+  const playedPositions = useMemo(() => notePositions(playingMidis, performanceData?.tuning, fretRange, performanceData?.capo), [playingMidis, performanceData?.tuning, performanceData?.capo, fretRange]);
   const workspaceStyle = {
     "--amber-note": activePalette.root,
     "--green-note": activePalette.third,
@@ -664,12 +671,12 @@ export function GuitarWorkspace() {
     });
     observer.observe(strip);
     return () => observer.disconnect();
-  }, [activeIndex, isPlaying, progressionText]);
+  }, [activeIndex, isPlaying, progressionText, performanceData]);
 
   useEffect(() => {
-    setActiveIndex((current) => Math.min(current, progression.length - 1));
-    setLoopStart((current) => Math.min(current, progression.length - 1));
-  }, [progression.length]);
+    setActiveIndex((current) => Math.max(0, Math.min(current, stepCount - 1)));
+    setLoopStart((current) => Math.max(0, Math.min(current, stepCount - 1)));
+  }, [stepCount]);
 
   useEffect(() => {
     const playback = new AbortController();
@@ -692,11 +699,12 @@ export function GuitarWorkspace() {
   }, []);
 
   function step(direction: number) {
+    if (!stepCount) return;
     if (followsPerformance) {
-      const index = loopMode === "pair" ? activeIndex === loopStart ? loopEnd : loopStart : (activeIndex + direction + progression.length) % progression.length;
+      const index = loopMode === "pair" ? activeIndex === loopStart ? loopEnd : loopStart : (activeIndex + direction + stepCount) % stepCount;
       setActiveIndex(index);
       if (loopMode === "hold") setLoopStart(index);
-      performanceAudio.seekChord(index);
+      performanceAudio.seekStep(index);
       return;
     }
     setActiveIndex((current) => {
@@ -704,15 +712,15 @@ export function GuitarWorkspace() {
         return current === loopStart ? loopEnd : loopStart;
       }
 
-      const next = (current + direction + progression.length) % progression.length;
+      const next = (current + direction + stepCount) % stepCount;
       if (loopMode === "hold") setLoopStart(next);
       return next;
     });
   }
 
   function switchPlaybackMode(mode: "original" | "notes" | "chords") {
-    if (mode === performanceMode || !performanceData) return;
-    const time = followsPerformance ? performanceAudio.getTime() : performanceData.chords[activeIndex]?.start ?? 0;
+    if (mode === performanceMode || !performanceData || (notePractice && mode === "chords")) return;
+    const time = followsPerformance ? performanceAudio.getTime() : performanceData.steps[activeIndex]?.start ?? 0;
     // An explicit pause prevents two outputs from briefly sounding during handoff.
     noteAudio.pauseNow(); originalAudio.pauseNow(); setIsPlaying(false);
     noteAudio.seekTime(time); originalAudio.seekTime(time);
@@ -722,6 +730,7 @@ export function GuitarWorkspace() {
   }
 
   function togglePlayback() {
+    if (!stepCount) return;
     if (followsPerformance && !performanceAudio.ready) return;
     if (!isPlaying) {
       setToneStopToken(token => token + 1);
@@ -740,9 +749,10 @@ export function GuitarWorkspace() {
   }
 
   function selectChord(index: number) {
+    if (index < 0 || index >= stepCount) return;
     setActiveIndex(index);
-    if (loopMode !== "full") setLoopStart(followsPerformance && loopMode === "pair" ? Math.min(index, Math.max(0, progression.length - 2)) : index);
-    if (followsPerformance) performanceAudio.seekChord(index);
+    if (loopMode !== "full") setLoopStart(followsPerformance && loopMode === "pair" ? Math.min(index, Math.max(0, stepCount - 2)) : index);
+    if (followsPerformance) performanceAudio.seekStep(index);
     else if (!isPlaying) void playChordSound(progression[index] ?? activeChord, activeTone, false, index);
   }
 
@@ -753,7 +763,7 @@ export function GuitarWorkspace() {
 
   function selectLoopMode(mode: LoopMode) {
     setLoopMode(mode);
-    if (mode !== "full") setLoopStart(followsPerformance && mode === "pair" ? Math.min(activeIndex, Math.max(0, progression.length - 2)) : activeIndex);
+    if (mode !== "full") setLoopStart(followsPerformance && mode === "pair" ? Math.min(activeIndex, Math.max(0, stepCount - 2)) : activeIndex);
   }
 
   function openEditor() {
@@ -783,6 +793,7 @@ export function GuitarWorkspace() {
       setDraftError({ message: "Voicings not available yet: {chords}. Choose a preset or try another chord.", values: { chords: unsupported.join(", ") } });
       return;
     }
+    if (notePractice) { setImportedPerformance(null); setPerformanceMode("chords"); setPlayingMidis([]); }
     setProgressionText(chords.join("  "));
     setActivePresetId(draftPresetId);
     setImportedHarmony(null);
@@ -882,6 +893,36 @@ export function GuitarWorkspace() {
     URL.revokeObjectURL(url);
   }
 
+  function applyTranscriptionResult(result: Transcription, refresh = false) {
+      const data = practicePerformance(result);
+      if (!data.steps.length && !refresh) return;
+      // Keep an empty Solo reviewable after removing every note or moving its
+      // score offset. Its disabled transport must not revive an old harmony.
+      if (!data.steps.length && notePractice) data.timelineKind = "notes";
+      noteAudio.pauseNow(); originalAudio.pauseNow(); stopChordSound();
+      setToneStopToken(token => token + 1);
+      const chords = data.timelineKind === "notes" ? [] : result.chords.filter(chord => chord.root !== null && chord.end > result.score_settings.offset && chord.start < result.duration);
+      const text = chords.map(chord => canonicalChordLabel(chord.label)).join("  ");
+      setProgressionText(text); setActivePresetId(null);
+      setImportedChart(null);
+      setImportedPerformance({ progression: text, data });
+      chooseFretRange({ min: Math.min(21, (result.score_settings.fret_min ?? 5) + data.capo), max: Math.min(21, (result.score_settings.fret_max ?? 12) + data.capo) });
+      setPerformanceMode(data.notes.length ? "notes" : "original");
+      setPlayingMidis(soundingMidi(data, 0));
+      setImportedHarmony(chords.length ? { progression: text, key: result.key.label, degrees: chords.map(chord => chord.roman) } : null);
+      setImportedTiming({ progression: text, beats: chords.map((chord, index) => {
+        // Keep gaps before the next detected chord so later changes stay on time.
+        const start = Math.max(chord.start, result.score_settings.offset);
+        const end = chords[index + 1]?.start ?? chord.end;
+        return Math.max(0.01, end - start) * result.score_settings.bpm / 60;
+      }) });
+      setBpm(result.score_settings.bpm);
+      setLoopMode("full");
+      playbackPositionRef.current.fraction = 0;
+      setActiveIndex(0); setLoopStart(0); setIsPlaying(false); setPanel(null);
+      if (!refresh) setTranscriptionOpen(false);
+  }
+
   function isInsideLoop(index: number) {
     if (loopMode === "full") return true;
     if (loopMode === "hold") return index === activeIndex;
@@ -897,14 +938,17 @@ export function GuitarWorkspace() {
   const panelParent = editorChild ? "Edit progression" : settingsChild ? "Practice settings" : "FretFlow";
   const settingsRows: { panel: Panel; icon: IconName; label: string; value: string }[] = [
     { panel: "chord-finder", icon: "key", label: "Find a chord", value: t("Choose fretboard positions") },
-    { panel: "loop", icon: "loop", label: "Loop & tempo", value: `${t(loopMode === "full" ? "Full progression" : loopMode === "pair" ? "A/B pair" : "Hold chord")} · ${bpm} BPM` },
+    { panel: "loop", icon: "loop", label: "Loop & tempo", value: `${t(loopMode === "full" ? notePractice ? "Full Solo" : "Full progression" : loopMode === "pair" ? notePractice ? "Two-note loop" : "A/B pair" : notePractice ? "Hold note" : "Hold chord")} · ${bpm} BPM` },
     { panel: "sound", icon: soundEnabled ? "sound" : "muted", label: "Tone Studio", value: t(soundEnabled ? playbackLabel : "Muted") },
     { panel: "appearance", icon: "appearance", label: "Appearance", value: `${t(activePalette.name)} · ${t(isFocused ? "Fretboard" : "Full guitar")}` },
     { panel: "key", icon: "key", label: "Key signature", value: `${keyChoice === "auto" ? t("Auto") + " · " : ""}${effectiveKey}` }
   ];
-  if (analysisResult) settingsRows.push({ panel: "chart", icon: "library", label: "Song chart", value: analysisResult.title });
+  if (notePractice) {
+    for (let index = settingsRows.length - 1; index >= 0; index--) if (["chord-finder", "key"].includes(settingsRows[index].panel)) settingsRows.splice(index, 1);
+  }
+  if (analysisResult && !notePractice) settingsRows.push({ panel: "chart", icon: "library", label: "Song chart", value: analysisResult.title });
 
-  return <main className={`practice-workspace ${focusMode ? "practice-focus-mode" : ""}`} style={workspaceStyle}
+  return <main className={`practice-workspace ${focusMode ? "practice-focus-mode" : ""} ${notePractice ? "solo-practice" : ""}`} style={workspaceStyle}
     onClickCapture={() => { if (soundEnabled && !followsPerformance) void unlockAudioContext(); }}>
     <header className="practice-header">
       <a className="practice-brand" href="/" aria-label={t("FretFlow home")}><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>FretFlow<span className="brand-section">{t("Practice")}</span></a>
@@ -914,14 +958,14 @@ export function GuitarWorkspace() {
       <button className="quiet-button" aria-label={t("Settings")} onClick={() => setPanel("settings")}><WorkspaceIcon name="settings" size={18} /><span>{t("Settings")}</span></button>
     </header>
 
-    <GuitarStage focusMode={focusMode} onFocusModeChange={setFocusMode} preferredRange={fretRange} guitar={activeGuitar} noteMode={followsNotes} tuning={performanceData?.tuning} markers={followsNotes ? playedPositions : markers} chord={followsNotes ? t("Sounding notes") : activeChord} degree={followsNotes ? playingMidis.map(midiName).join(" · ") || t("Rest") : activeDegree} focused={isFocused} isPlaying={isPlaying} chordDurationMs={chordDurationMs} onFocus={() => setIsFocused(true)} />
-    {showDiagram && !followsNotes ? <div className="practice-diagram"><ChordDiagram chord={activeChord} degree={activeDegree} markers={markers} /></div> : null}
+    <GuitarStage focusMode={focusMode} onFocusModeChange={setFocusMode} preferredRange={fretRange} guitar={activeGuitar} noteMode={showsNotePositions} tuning={performanceData?.tuning} markers={showsNotePositions ? playedPositions : markers} chord={showsNotePositions ? t(notePractice ? "Solo notes" : "Sounding notes") : activeChord} degree={showsNotePositions ? playingMidis.map(midiName).join(" · ") || t("Rest") : activeDegree} focused={isFocused} isPlaying={isPlaying} chordDurationMs={chordDurationMs} onFocus={() => setIsFocused(true)} />
+    {showDiagram && !showsNotePositions ? <div className="practice-diagram"><ChordDiagram chord={activeChord} degree={activeDegree} markers={markers} /></div> : null}
 
     <section className="practice-dock" aria-label={t("Practice controls")}>
       {audioBlocked || (followsPerformance && performanceAudio.error) ? <p className="practice-audio-error" role="status">{t("Audio could not start. Tap Play to retry.")}</p> : null}
       <div className="practice-dock-heading">
-        <div><span className="eyebrow">{t("Your progression")}</span>{loopMode !== "full" ? <span className="active-loop-label">{loopMode === "pair" ? t("A/B loop") : t("Holding chord")}</span> : null}</div>
-        <div className="practice-dock-actions"><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("score-import"); }}><WorkspaceIcon name="import" size={15} />{t("Import score")}</button><button className="quiet-button harmony-shortcut" aria-label={t("Harmony analysis")} onClick={() => { setIsPlaying(false); setPanel("harmony"); }}><WorkspaceIcon name="key" size={15} />{t("Harmony")}</button><button className="quiet-button edit-progression" onClick={openEditor}><WorkspaceIcon name="edit" size={15} />{t("Edit")}</button></div>
+        <div><span className="eyebrow">{t(notePractice ? "Your Solo" : "Your progression")}</span>{loopMode !== "full" ? <span className="active-loop-label">{loopMode === "pair" ? t("A/B loop") : t(notePractice ? "Looping note" : "Holding chord")}</span> : null}</div>
+        <div className="practice-dock-actions"><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("score-import"); }}><WorkspaceIcon name="import" size={15} />{t("Import score")}</button>{notePractice ? <button className="quiet-button" onClick={() => { setIsPlaying(false); setTranscriptionOpen(true); }}><WorkspaceIcon name="edit" size={15} />{t("Review notes")}</button> : <><button className="quiet-button harmony-shortcut" aria-label={t("Harmony analysis")} onClick={() => { setIsPlaying(false); setPanel("harmony"); }}><WorkspaceIcon name="key" size={15} />{t("Harmony")}</button><button className="quiet-button edit-progression" onClick={openEditor}><WorkspaceIcon name="edit" size={15} />{t("Edit")}</button></>}</div>
       </div>
       {performanceData ? <div className="practice-audio-bar">
         <div className="practice-audio-modes" role="group" aria-label={t("Practice audio")}>
@@ -929,30 +973,31 @@ export function GuitarWorkspace() {
           {performanceData.originalUrl ? <button type="button" aria-pressed={performanceMode === "original"} onClick={() => switchPlaybackMode("original")}>{t("Original")}</button> : null}
         </div>
         <div className="practice-playing-notes" aria-label={t("Sounding notes")}>
-          {followsNotes ? <><span>{t("Notes")}</span>{playingMidis.length ? playingMidis.map(midi => <strong key={midi} data-midi={midi}>{midiName(midi)}</strong>) : <span>{t("Rest")}</span>}</> : <span>{t(followsOriginal ? "Play with the original recording" : "Suggested chord practice")}</span>}
+          {showsNotePositions ? <><span>{t("Notes")}</span>{playingMidis.length ? playingMidis.map(midi => <strong key={midi} data-midi={midi}>{midiName(midi)}</strong>) : <span>{t("Rest")}</span>}</> : <span>{t(followsOriginal ? "Play with the original recording" : "Suggested chord practice")}</span>}
         </div>
       </div> : null}
-      <div className="practice-fingering-bar"><button className="quiet-button tone-studio-shortcut" onClick={() => setPanel("sound")}><WorkspaceIcon name="sound" size={15} />{t("Tone Studio")}</button><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("chord-finder"); }}>{t("Find a chord")}</button><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("fingering"); }}>{t("Fingering & video")} · {t("Frets {min}–{max}", fretRange)}</button><small>{t(chartSteps?.[activeIndex]?.sourceShape && !(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex]) ? "Written in source score" : pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex] ? "Your chosen shape" : "Connected suggestions")}</small></div>
+      <div className="practice-fingering-bar"><button className="quiet-button tone-studio-shortcut" onClick={() => setPanel("sound")}><WorkspaceIcon name="sound" size={15} />{t("Tone Studio")}</button>{notePractice ? <><label>{t("Fretboard position")} <select aria-label={t("Fretboard position")} value={`${fretRange.min}:${fretRange.max}`} onChange={event => { const [min, max] = event.target.value.split(":").map(Number); chooseFretRange({ min, max }); }}>{![[0,5],[5,12],[8,17]].some(([min,max]) => min === fretRange.min && max === fretRange.max) && <option value={`${fretRange.min}:${fretRange.max}`}>{t("Frets {min}–{max}", fretRange)}</option>}{[[0,5],[5,12],[8,17]].map(([min,max]) => <option key={min} value={`${min}:${max}`}>{t("Frets {min}–{max}", {min,max})}</option>)}</select></label><small>{t("Suggested positions · frets measured from the nut")}</small></> : <><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("chord-finder"); }}>{t("Find a chord")}</button><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("fingering"); }}>{t("Fingering & video")} · {t("Frets {min}–{max}", fretRange)}</button><small>{t(chartSteps?.[activeIndex]?.sourceShape && !(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex]) ? "Written in source score" : pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex] ? "Your chosen shape" : "Connected suggestions")}</small></>}</div>
       {importedChart?.progression === progressionText && <p className="imported-score-caption">{importedChart.source !== "manual" && <>{t("From your chart")} · </>}{importedChart.title === "Imported chord chart" || importedChart.title === "Your progression" ? t(importedChart.title) : importedChart.title} · {t("Suggested practice voicings")}</p>}
-      <div className="practice-chords" ref={chordStripRef} aria-label={t("Chord progression")}>
-        {progression.map((chord, index) => <button key={`${chord}-${index}`} className={`${activeIndex === index ? "active" : ""} ${isInsideLoop(index) ? "in-loop" : "outside-loop"}`}
+      {notePractice && !stepCount && <p role="status" className="solo-practice-empty">{t("Nothing remains in this practice range. Review the notes or adjust the score offset.")}</p>}
+      <div className="practice-chords" ref={chordStripRef} aria-label={t(notePractice ? "Note sequence" : "Chord progression")}>
+        {practiceLabels.map((label, index) => <button key={`${label}-${index}`} className={`${activeIndex === index ? "active" : ""} ${isInsideLoop(index) ? "in-loop" : "outside-loop"}`}
           ref={activeIndex === index ? activeChordRef : null}
-          aria-label={`${chord} ${degrees[index]}`} aria-pressed={activeIndex === index} onClick={() => selectChord(index)}>
-          <ChordThumbnail chord={chord} markers={connectedShapes[index] ?? []} />
-          <span>{chord}</span><small>{degrees[index]}{importedChart?.progression === progressionText ? ` · ${t("{count} beats", { count: Number((importedTiming?.beats[index] ?? 4).toFixed(2)) })}` : ""}</small>
+          aria-label={notePractice ? `${label} · ${index + 1}` : `${label} ${degrees[index]}`} aria-pressed={activeIndex === index} onClick={() => selectChord(index)}>
+          {!notePractice && <ChordThumbnail chord={label} markers={connectedShapes[index] ?? []} />}
+          <span>{label}</span><small>{notePractice ? `${performanceData.steps[index].start.toFixed(2)}s · ${(performanceData.steps[index].end - performanceData.steps[index].start).toFixed(2)}s` : <>{degrees[index]}{importedChart?.progression === progressionText ? ` · ${t("{count} beats", { count: Number((importedTiming?.beats[index] ?? 4).toFixed(2)) })}` : ""}</>}</small>
         </button>)}
       </div>
       <div className="practice-transport">
         <button className="tempo-shortcut" onClick={() => setPanel("loop")} aria-label={t("Adjust tempo, {bpm} BPM", { bpm })}><span className={isPlaying ? "beat-dot playing" : "beat-dot"} style={{ animationDuration: `${60000 / bpm}ms` }} /><strong>{bpm}</strong><span>BPM</span></button>
         <div className="transport-center">
-          <button className="icon-button" aria-label={t("Previous chord")} title={t("Previous chord")} onClick={() => step(-1)}><WorkspaceIcon name="previous" size={19} /></button>
-          <button className="play-button" disabled={followsPerformance && !performanceAudio.ready} onClick={togglePlayback} aria-label={isPlaying ? t("Pause playback") : t("Play progression")}><WorkspaceIcon name={isPlaying ? "pause" : "play"} size={19} /><span>{isPlaying ? t("Pause") : t("Play")}</span></button>
-          <button className="icon-button" aria-label={t("Next chord")} title={t("Next chord")} onClick={() => step(1)}><WorkspaceIcon name="next" size={19} /></button>
+          <button className="icon-button" disabled={!stepCount} aria-label={t(notePractice ? "Previous note" : "Previous chord")} title={t(notePractice ? "Previous note" : "Previous chord")} onClick={() => step(-1)}><WorkspaceIcon name="previous" size={19} /></button>
+          <button className="play-button" disabled={!stepCount || (followsPerformance && !performanceAudio.ready)} onClick={togglePlayback} aria-label={isPlaying ? t("Pause playback") : t(notePractice ? "Play Solo" : "Play progression")}><WorkspaceIcon name={isPlaying ? "pause" : "play"} size={19} /><span>{isPlaying ? t("Pause") : t("Play")}</span></button>
+          <button className="icon-button" disabled={!stepCount} aria-label={t(notePractice ? "Next note" : "Next chord")} title={t(notePractice ? "Next note" : "Next chord")} onClick={() => step(1)}><WorkspaceIcon name="next" size={19} /></button>
         </div>
-        <span className="practice-position" aria-label={t("Chord {index} of {total}", { index: activeIndex + 1, total: progression.length })}>{String(activeIndex + 1).padStart(2, "0")}<span>/</span>{String(progression.length).padStart(2, "0")}</span>
+        <span className="practice-position" aria-label={t(notePractice ? "Note {index} of {total}" : "Chord {index} of {total}", { index: stepCount ? activeIndex + 1 : 0, total: stepCount })}>{String(stepCount ? activeIndex + 1 : 0).padStart(2, "0")}<span>/</span>{String(stepCount).padStart(2, "0")}</span>
       </div>
     </section>
-    <footer className="practice-footer"><span>{t(soundEnabled ? playbackLabel : "Sound off")}</span><i /><span>{t("Key {key}", { key: localize(displayedKey) })}</span>{followsPerformance ? <><i /><span>{t(performanceAudio.error ? followsOriginal ? "Original recording is unavailable. Reopen the source or choose another playback mode." : "Detected timing playback is unavailable." : performanceAudio.ready ? followsOriginal ? "Play along · suggested chord shapes" : "Synthesized notes · suggested positions · Beta" : followsOriginal ? "Loading original recording…" : "Loading score sounds…")}</span></> : null}<i /><TestFeedback compact /></footer>
+    <footer className="practice-footer"><span>{t(soundEnabled ? playbackLabel : "Sound off")}</span>{!notePractice && <><i /><span>{t("Key {key}", { key: localize(displayedKey) })}</span></>}{followsPerformance ? <><i /><span>{t(performanceAudio.error ? followsOriginal ? "Original recording is unavailable. Reopen the source or choose another playback mode." : "Detected timing playback is unavailable." : performanceAudio.ready ? followsOriginal ? notePractice ? "Play along · detected note positions · Beta" : "Play along · suggested chord shapes" : "Synthesized notes · suggested positions · Beta" : followsOriginal ? "Loading original recording…" : "Loading score sounds…")}</span></> : null}<i /><TestFeedback compact /></footer>
 
     <WorkspaceSheet view={panel} title={panel ? panelTitles[panel] : ""} section={panelParent} onClose={closePanel}
       onBack={editorChild || settingsChild ? () => {
@@ -991,23 +1036,23 @@ export function GuitarWorkspace() {
       {panel === "loop" ? <div className="settings-detail">
         <div className="tempo-setting"><label htmlFor="practice-tempo">{t("Tempo")}</label><output htmlFor="practice-tempo">{bpm}<small>BPM</small></output><input id="practice-tempo" aria-label={t("Playback tempo")} type="range" min={followsOriginal && performanceData ? Math.max(30, performanceData.bpm / 4) : 30} max={followsOriginal && performanceData ? Math.min(240, performanceData.bpm * 4) : 240} step="0.1" value={bpm} onChange={event => setBpm(Number(event.target.value))} /><div><span>30</span><span>240</span></div></div>
         <fieldset className="option-list"><legend>{t("Loop")}</legend>{([
-          ["full", "Full progression", "Move through every chord."], ["pair", "A/B pair", "Repeat the current chord and the next one."], ["hold", "Hold chord", "Stay on one shape while you practice."]
+          ["full", notePractice ? "Full Solo" : "Full progression", notePractice ? "Move through every note." : "Move through every chord."], ["pair", notePractice ? "Two-note loop" : "A/B pair", notePractice ? "Repeat the current note and the next one." : "Repeat the current chord and the next one."], ["hold", notePractice ? "Hold note" : "Hold chord", notePractice ? "Repeat one note while you practice." : "Stay on one shape while you practice."]
         ] as const).map(([mode, name, description]) => <label key={mode}><input type="radio" name="loop" checked={loopMode === mode} onChange={() => selectLoopMode(mode)} /><span><strong>{t(name)}</strong><small>{t(description)}</small></span></label>)}</fieldset>
-        {loopMode !== "full" ? <p className="setting-note">{loopMode === "pair" ? `${progression[loopStart]} ↔ ${progression[loopEnd]}` : activeChord}</p> : null}
+        {loopMode !== "full" ? <p className="setting-note">{loopMode === "pair" ? `${practiceLabels[loopStart]} ↔ ${practiceLabels[loopEnd]}` : practiceLabels[activeIndex]}</p> : null}
       </div> : null}
 
       {panel === "sound" ? <div className="settings-detail">
         <ToneGuide practicePlaying={isPlaying} onPracticeToggle={togglePlayback} stopToken={toneStopToken} onBeforePlay={() => { setIsPlaying(false); noteAudio.pauseNow(); originalAudio.pauseNow(); stopChordSound(); }} />
-        {performanceData ? <fieldset className="option-list"><legend>{t("Playback")}</legend>{([["original", "Original recording", "Play along with the source. Slow it down or loop a phrase."], ["notes", "Synthesized · Beta", "Hear the detected notes with our guitar sound."], ["chords", "Chord practice", "Explore suggested shapes with your own sound."]] as const).filter(([mode]) => mode === "chords" || (mode === "notes" ? performanceData.notes.length : performanceData.originalUrl)).map(([mode, name, description]) => <label key={name}><input type="radio" name="performance-mode" checked={performanceMode === mode} onChange={() => switchPlaybackMode(mode)} /><span><strong>{t(name)}</strong><small>{t(description)}</small></span></label>)}</fieldset> : null}
-        <label className="toggle-row"><span><strong>{t("Guitar sound")}</strong><small>{t("Hear the chords as they move.")}</small></span><input type="checkbox" role="switch" checked={soundEnabled} onChange={event => { setSoundEnabled(event.target.checked); if (event.target.checked && !followsPerformance && !isPlaying) void playChordSound(activeChord, activeTone, true); }} /></label>
-        <details className="tone-voice-details"><summary>{t("Guitar voice")}</summary><fieldset className="option-list" disabled={followsPerformance}><legend>{t("Guitar voice")}</legend>{tonePresets.map(tone => <label key={tone.id}><input type="radio" name="tone" checked={toneId === tone.id} onChange={() => { setToneId(tone.id); if (soundEnabled) void playChordSound(activeChord, tone); }} /><span><strong>{t(tone.name)}</strong></span></label>)}</fieldset></details>
+        {performanceData ? <fieldset className="option-list"><legend>{t("Playback")}</legend>{([["original", "Original recording", "Play along with the source. Slow it down or loop a phrase."], ["notes", "Synthesized · Beta", "Hear the detected notes with our guitar sound."], ["chords", "Chord practice", "Explore suggested shapes with your own sound."]] as const).filter(([mode]) => mode === "chords" ? !notePractice : (mode === "notes" ? performanceData.notes.length : performanceData.originalUrl)).map(([mode, name, description]) => <label key={name}><input type="radio" name="performance-mode" checked={performanceMode === mode} onChange={() => switchPlaybackMode(mode)} /><span><strong>{t(name)}</strong><small>{t(description)}</small></span></label>)}</fieldset> : null}
+        <label className="toggle-row"><span><strong>{t("Guitar sound")}</strong><small>{t(notePractice ? "Hear the notes as they move." : "Hear the chords as they move.")}</small></span><input type="checkbox" role="switch" checked={soundEnabled} onChange={event => { setSoundEnabled(event.target.checked); if (event.target.checked && !followsPerformance && !isPlaying) void playChordSound(activeChord, activeTone, true); }} /></label>
+        {!notePractice && <details className="tone-voice-details"><summary>{t("Guitar voice")}</summary><fieldset className="option-list" disabled={followsPerformance}><legend>{t("Guitar voice")}</legend>{tonePresets.map(tone => <label key={tone.id}><input type="radio" name="tone" checked={toneId === tone.id} onChange={() => { setToneId(tone.id); if (soundEnabled) void playChordSound(activeChord, tone); }} /><span><strong>{t(tone.name)}</strong></span></label>)}</fieldset></details>}
       </div> : null}
 
       {panel === "appearance" ? <div className="settings-detail">
 
         <fieldset className="option-list palette-options"><legend>{t("Note colors")}</legend>{markerPalettes.map(palette => <label key={palette.id}><input type="radio" name="palette" checked={paletteId === palette.id} onChange={() => setPaletteId(palette.id)} /><span><strong>{t(palette.name)}</strong></span><span className="palette-swatches" aria-hidden="true">{[palette.root, palette.third, palette.fifth, palette.seventh, palette.extension].map((color, i) => <i key={i} style={{ background: color }} />)}</span></label>)}</fieldset>
-        <label className="toggle-row"><span><strong>{t("Focus on fretboard")}</strong><small>{t("A closer view of each chord shape.")}</small></span><input type="checkbox" role="switch" checked={isFocused} onChange={event => setIsFocused(event.target.checked)} /></label>
-        <label className="toggle-row"><span><strong>{t("Fingering diagram")}</strong><small>{t("Show a small chord chart beside the guitar.")}</small></span><input type="checkbox" role="switch" checked={showDiagram} onChange={event => setShowDiagram(event.target.checked)} /></label>
+        <label className="toggle-row"><span><strong>{t("Focus on fretboard")}</strong><small>{t(notePractice ? "A closer view of each note." : "A closer view of each chord shape.")}</small></span><input type="checkbox" role="switch" checked={isFocused} onChange={event => setIsFocused(event.target.checked)} /></label>
+        {!notePractice && <label className="toggle-row"><span><strong>{t("Fingering diagram")}</strong><small>{t("Show a small chord chart beside the guitar.")}</small></span><input type="checkbox" role="switch" checked={showDiagram} onChange={event => setShowDiagram(event.target.checked)} /></label>}
       </div> : null}
 
       {panel === "guitar" ? <div className="dream-guitar-picker">
@@ -1025,7 +1070,7 @@ export function GuitarWorkspace() {
 
       {panel === "key" ? <div className="settings-detail"><label className="field-label" htmlFor="practice-key">{t("Progression key")}</label><select className="key-select" id="practice-key" value={keyChoice} onChange={event => { setImportedHarmony(null); setKeyChoice(event.target.value as "auto" | KeyName); }}><option value="auto">{t("Auto detect · {key}", { key: effectiveKey })}</option>{KEYS.map(key => <option key={key} value={key}>{key}</option>)}</select><p className="field-hint">{t("The Roman numerals show each chord’s role in this key.")}</p></div> : null}
 
-      {panel === "fingering" ? <FingeringPanel chords={progression} index={Math.max(0, activeIndex)} onIndex={index => { setIsPlaying(false); setActiveIndex(index); playbackPositionRef.current.fraction = 0; if (followsPerformance) performanceAudio.seekChord(index); }} range={fretRange} onRange={chooseFretRange} candidates={choicesByChord.get(activeChord) ?? []} selected={markers}
+      {panel === "fingering" ? <FingeringPanel chords={progression} index={Math.max(0, activeIndex)} onIndex={index => { setIsPlaying(false); setActiveIndex(index); playbackPositionRef.current.fraction = 0; if (followsPerformance) performanceAudio.seekStep(index); }} range={fretRange} onRange={chooseFretRange} candidates={choicesByChord.get(activeChord) ?? []} selected={markers}
         onChoose={shape => setPinnedShapes(previous => ({ progression: progressionText, shapes: { ...(previous.progression === progressionText ? previous.shapes : {}), [activeIndex]: shape } }))}
         pinned={Boolean(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex])}
         onReset={() => setPinnedShapes(previous => { const shapes = { ...previous.shapes }; delete shapes[activeIndex]; return { ...previous, shapes }; })}
@@ -1056,27 +1101,8 @@ export function GuitarWorkspace() {
 
       {panel === "chart" && analysisResult ? <div className="imported-chart"><p className="field-hint">{analysisResult.title} · {analysisResult.key} · {analysisResult.bpm} BPM</p>{analysisResult.sections.map(section => <section key={section.name}><h3>{section.name}</h3><div>{section.bars.map((bar, index) => <button key={index} onClick={() => { selectChartChord(bar[0]); closePanel(); }}><small>{index + 1}</small>{bar.join("  ")}</button>)}</div></section>)}<button className="secondary-button" onClick={exportChordChart}><WorkspaceIcon name="import" size={16} />{t("Export chart")}</button></div> : null}
     </WorkspaceSheet>
-    <MediaTranscription open={transcriptionOpen} onClose={() => setTranscriptionOpen(false)} onPractice={result => {
-      const chords = result.chords.filter(chord => chord.root !== null && chord.end > result.score_settings.offset);
-      if (!chords.length) return;
-      const text = chords.map(chord => canonicalChordLabel(chord.label)).join("  ");
-      setProgressionText(text); setActivePresetId(null);
-      setImportedChart(null);
-      setImportedPerformance({ progression: text, data: practicePerformance(result) });
-      chooseFretRange({ min: result.score_settings.fret_min ?? 5, max: result.score_settings.fret_max ?? 12 });
-      setPerformanceMode(result.notes.some(note => !note.excluded) ? "notes" : "original");
-      setPlayingMidis([]);
-      setImportedHarmony({ progression: text, key: result.key.label, degrees: chords.map(chord => chord.roman) });
-      setImportedTiming({ progression: text, beats: chords.map((chord, index) => {
-        // Keep gaps before the next detected chord so later changes stay on time.
-        const start = Math.max(chord.start, result.score_settings.offset);
-        const end = chords[index + 1]?.start ?? chord.end;
-        return Math.max(0.01, end - start) * result.score_settings.bpm / 60;
-      }) });
-      setBpm(result.score_settings.bpm);
-      setLoopMode("full");
-      playbackPositionRef.current.fraction = 0;
-      setActiveIndex(0); setLoopStart(0); setIsPlaying(false); setPanel(null); setTranscriptionOpen(false);
+    <MediaTranscription open={transcriptionOpen} onClose={() => setTranscriptionOpen(false)} onPractice={result => applyTranscriptionResult(result)} onResultChange={result => {
+      if (performanceData?.sourceId === result.id) applyTranscriptionResult(result, true);
     }} />
   </main>;
 }

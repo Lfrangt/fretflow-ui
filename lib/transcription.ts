@@ -1,7 +1,7 @@
 import { uploadMedia, type UploadProgress } from "./media-upload";
 
 export const TRANSCRIPTION_API = "/api/transcription";
-export type AnalysisMode = "chords" | "both" | "notes";
+export type AnalysisMode = "chords" | "both" | "notes" | "solo";
 export const NOTATION_BETA_NOTICE = "Staff notation and guitar tabs are in Beta. Notes, rhythms and fingerings may be inaccurate and are for reference only. We are working to improve accuracy; note-for-note reproduction is not guaranteed.";
 export type Stem = "guitar" | "vocals" | "drums" | "bass" | "piano" | "other" | "instrumental";
 export type Separation = { enabled: boolean; mode?: "none" | "guitar" | "instrumental"; model?: string; stems: Stem[]; notes_source: "original" | "guitar" | "instrumental"; chords_source: "original" | "instrumental" };

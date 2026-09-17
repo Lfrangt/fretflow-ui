@@ -44,19 +44,45 @@ def analyze(path: Path, mode: str, sensitivity: float, progress, *, notes_path: 
             "mode": mode, "sensitivity": sensitivity, "chords": [], "notes": [], "chroma": [],
             "key": {"label": "未确定", "root": None, "mode": None, "fit": 0, "alternatives": [], "edited": False},
             "engines": {"chords": "ChordMini · ChordNet 2E1D", "notes": "Spotify Basic Pitch 0.4.0 · ONNX"}}
+    if mode == "solo":
+        base["engines"] = {"chords": None, "notes": "FretFlow Solo · monophonic pitch tracking"}
     if np.max(np.abs(y)) < .0001:
         return {**base, "warnings": ["音频接近静音，未检测到足够的音高信息。"], "analysis_seconds": round(time.monotonic()-started, 2)}
     if mode in ("both", "chords"):
         base["chords"] = recognize_chords(path, y, SR, progress)
     weak_guitar = False
-    if mode in ("both", "notes"):
+    if mode in ("both", "notes", "solo"):
         if notes_path is not None:
             guitar, _ = librosa.load(notes_path, sr=SR, mono=True)
             if abs(len(guitar) - len(y)) > 2:
                 raise ValueError("吉他轨与原音时长不一致，无法对齐视频谱。")
             weak_guitar = not len(guitar) or float(np.max(np.abs(guitar))) < .0001
         if not weak_guitar:
-            base["notes"] = recognize_notes(notes_path or path, duration, sensitivity, progress)
+            if mode == "solo":
+                from .solo import recognize_solo
+                base["notes"] = recognize_solo(notes_path or path, duration, sensitivity, progress)
+            else:
+                base["notes"] = recognize_notes(notes_path or path, duration, sensitivity, progress)
+    if mode == "solo":
+        # A melodic line does not establish its underlying harmony. Preserve
+        # unknown key and empty chords rather than inventing accompaniment.
+        progress(90, "Estimating Solo timing")
+        timing_audio = guitar if notes_path is not None else y
+        onset_envelope = librosa.onset.onset_strength(y=timing_audio, sr=SR, hop_length=HOP)
+        onsets = librosa.onset.onset_detect(onset_envelope=onset_envelope, sr=SR, hop_length=HOP)
+        tempo_value = float(np.asarray(librosa.feature.tempo(onset_envelope=onset_envelope, sr=SR, hop_length=HOP)).reshape(-1)[0])
+        base["tempo"] = {"bpm": round(tempo_value, 1) if len(onsets) >= 3 and 30 <= tempo_value <= 240 else None, "estimated": True}
+        base["warnings"] = [
+            "Solo follows one melodic line. Use a clear single-guitar recording; accompaniment, overlapping notes and distortion can cause errors.",
+            "Solo pitch and timing are estimates. Bends, slides, vibrato and legato need listening and manual correction; original fingering is not recovered.",
+            "A Solo melody alone does not establish its chords or key. No accompanying chords were generated.",
+        ]
+        if notes_path is not None:
+            base["warnings"].append("Solo notes and tempo use the separated guitar. Other guitars can remain in this stem; compare with the original recording.")
+        if weak_guitar:
+            base["warnings"].append("分离后的吉他轨接近静音，未生成音符。请回听原音，或改用原音分析。")
+        base["analysis_seconds"] = round(time.monotonic() - started, 2)
+        return base
     progress(90, "估计调性与整理和声级数")
     harmonic = librosa.effects.harmonic(y, margin=2)
     chroma = librosa.feature.chroma_cqt(y=harmonic, sr=SR, hop_length=HOP, n_octaves=6, threshold=.1)

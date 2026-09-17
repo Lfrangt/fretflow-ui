@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { chordAtTime, practiceRange, type PracticePerformance } from "@/lib/practice-performance";
+import { stepAtTime, practiceRange, soundingMidi, type PracticePerformance } from "@/lib/practice-performance";
 import { prepareAudioPlayback } from "@/lib/audio-playback";
 
-/** Play the actual source, with the chord guide following its media clock. */
+/** Play the actual source, with note or chord steps following its media clock. */
 export function usePracticeRecording(data: PracticePerformance | null, options: {
   playing: boolean; enabled: boolean; audible: boolean; bpm: number;
   loop: "full" | "pair" | "hold"; loopStart: number;
-  onChord: (index: number) => void; onError: () => void;
+  onStep: (index: number) => void; onNotes: (midis: number[]) => void; onError: () => void;
 }) {
   const player = useRef<HTMLAudioElement | null>(null);
   const pendingPosition = useRef(0);
@@ -35,8 +35,9 @@ export function usePracticeRecording(data: PracticePerformance | null, options: 
         audio.currentTime = data.offset + range.start; time = range.start;
         if (audio.paused) play();
       }
-      const index = chordAtTime(data, time);
-      if (index >= 0) latest.current.onChord(index);
+      latest.current.onNotes(soundingMidi(data, time));
+      const index = stepAtTime(data, time);
+      if (index >= 0) latest.current.onStep(index);
     };
     const tick = () => { update(); frame = requestAnimationFrame(tick); };
     audio.addEventListener("loadedmetadata", () => { audio.currentTime = pendingPosition.current; });
@@ -77,6 +78,7 @@ export function usePracticeRecording(data: PracticePerformance | null, options: 
     if (data) {
       pendingPosition.current = data.offset + Math.max(0, Math.min(time, data.duration - .001));
       if (player.current && player.current.readyState >= 1) player.current.currentTime = pendingPosition.current;
+      if (latest.current.enabled) latest.current.onNotes(soundingMidi(data, pendingPosition.current - data.offset));
     }
   }
   function playFromGesture() {
@@ -92,6 +94,6 @@ export function usePracticeRecording(data: PracticePerformance | null, options: 
   }
   return { ready, error, playFromGesture, pauseNow: () => player.current?.pause(), seekTime,
     getTime: () => Math.max(0, (player.current?.readyState ? player.current.currentTime : pendingPosition.current) - (data?.offset ?? 0)),
-    seekChord(index: number) { seekTime(data?.chords[index]?.start ?? 0); }
+    seekStep(index: number) { seekTime(data?.steps[index]?.start ?? 0); }
   };
 }

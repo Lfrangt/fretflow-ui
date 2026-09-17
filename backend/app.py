@@ -9,6 +9,7 @@ import io
 import json
 import logging
 import importlib.util
+import math
 import os
 import hmac
 from pathlib import Path
@@ -313,7 +314,7 @@ def health():
     from .vocal_removal import vocal_model
     from .runtime import model_threads
     return {"status": "ok", "local": not hosting.enabled(), "max_duration": MAX_DURATION, "max_bytes": MAX_BYTES,
-            "features": {"note_tracks": True},
+            "features": {"note_tracks": True, "solo": True},
             "engines": {"chordmini": CHECKPOINT.is_file(), "basic_pitch": importlib.util.find_spec("basic_pitch") is not None, "demucs": separation_available(), "vocal_removal": vocal_removal_available()},
             "loaded": {"chordmini": bool(chord_model.cache_info().currsize), "basic_pitch": bool(pitch_model.cache_info().currsize), "vocal_removal": bool(vocal_model.cache_info().currsize)},
             "model_threads": model_threads()}
@@ -349,7 +350,7 @@ def download_ticket(id: str, request: Request):
 
 
 @app.post("/api/analyze", status_code=202)
-async def upload(file: UploadFile = File(...), mode: Literal["both", "chords", "notes"] = Form("chords"),
+async def upload(file: UploadFile = File(...), mode: Literal["both", "chords", "notes", "solo"] = Form("chords"),
                  sensitivity: float = Form(.5, ge=.2, le=.8),
                  separation: Literal["none", "guitar", "instrumental"] = Form("none"),
                  clip_start: float = Form(0, ge=0, le=86400), clip_end: float | None = Form(None, gt=0, le=86400)):
@@ -393,7 +394,7 @@ async def upload(file: UploadFile = File(...), mode: Literal["both", "chords", "
 
 class DemoRequest(BaseModel):
     sample: Literal["harmony", "melody"] = "harmony"
-    mode: Literal["both", "chords", "notes"] = "chords"
+    mode: Literal["both", "chords", "notes", "solo"] = "chords"
     sensitivity: float = Field(.5, ge=.2, le=.8)
 
 
@@ -410,7 +411,7 @@ def demo(data: DemoRequest):
 def history():
     cleanup()
     with lock:
-        return [{"id": j.id, "name": j.name, "created": j.created, "status": j.status,
+        return [{"id": j.id, "name": j.name, "created": j.created, "status": j.status, "mode": j.mode,
                  "separation": j.result.get("separation", {}).get("mode", j.separation)}
                 for j in sorted(jobs.values(), key=lambda j: j.created, reverse=True)
                 if j.status == "done" and (not hosting.enabled() or j.owner_id == hosting.owner.get())][:12]
@@ -459,7 +460,7 @@ def stem_audio(id: str, stem: str):
 
 class ReanalyzeRequest(BaseModel):
     separation: Literal["none", "instrumental", "guitar"] = "instrumental"
-    mode: Literal["both", "chords", "notes"] | None = None
+    mode: Literal["both", "chords", "notes", "solo"] | None = None
 
 
 @app.post("/api/jobs/{id}/reanalyze", status_code=202)
@@ -662,7 +663,15 @@ def export(id: str, kind: Literal["json", "chords.csv", "chords.txt", "notes.mid
                 track = note.get("track", 1)
                 if track not in instruments:
                     instruments[track] = pretty_midi.Instrument(program=24, name=f"Guitar {track} - Beta; reference only")
-                instruments[track].notes.append(pretty_midi.Note(max(1, min(127, round(note["activation"]*127))), note["midi"], note["start"], note["end"]))
+                if result.get("mode") == "solo":
+                    # Solo activation is pYIN voicing probability, not playing
+                    # intensity. Match the web performance player's neutral
+                    # velocity unless an explicit MIDI velocity was supplied.
+                    explicit = note.get("velocity")
+                    velocity = max(1, min(127, math.floor(explicit + .5))) if type(explicit) in (int, float) and math.isfinite(explicit) else 95
+                else:
+                    velocity = max(1, min(127, round(note["activation"] * 127)))
+                instruments[track].notes.append(pretty_midi.Note(velocity, note["midi"], note["start"], note["end"]))
             midi.instruments.extend(instruments[track] for track in sorted(instruments))
         else:
             for chord in result["chords"]:

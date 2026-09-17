@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import type { synth } from "@coderline/alphatab";
 import { loadNotationEngine } from "@/lib/notation-engine";
 import { buildPerformanceMidi, PERFORMANCE_TICKS_PER_SECOND } from "@/lib/performance-midi";
-import { chordAtTime, soundingMidi, type PracticePerformance } from "@/lib/practice-performance";
+import { stepAtTime, practiceRange, soundingMidi, type PracticePerformance } from "@/lib/practice-performance";
 import { prepareAudioPlayback } from "@/lib/audio-playback";
 import { createTonePlayer } from "@/lib/tone-synth";
 
 export function usePracticePerformance(data: PracticePerformance | null, options: {
   playing: boolean; enabled: boolean; audible: boolean; bpm: number;
   loop: "full" | "pair" | "hold"; loopStart: number;
-  onChord: (index: number) => void; onNotes: (midis: number[]) => void; onError: () => void;
+  onStep: (index: number) => void; onNotes: (midis: number[]) => void; onError: () => void;
 }) {
   const player = useRef<synth.IAlphaSynth | null>(null);
   const position = useRef(0);
@@ -48,8 +48,8 @@ export function usePracticePerformance(data: PracticePerformance | null, options
         // currentTime stretches with playbackSpeed; MIDI ticks stay on the source timeline.
         position.current = event.currentTick / PERFORMANCE_TICKS_PER_SECOND;
         latest.current.onNotes(soundingMidi(data, position.current));
-        const index = chordAtTime(data, position.current);
-        if (index >= 0) latest.current.onChord(index);
+        const index = stepAtTime(data, position.current);
+        if (index >= 0) latest.current.onStep(index);
       });
       raw.midiLoadFailed.on(fail); raw.soundFontLoadFailed.on(fail);
       let initialized = false;
@@ -81,9 +81,12 @@ export function usePracticePerformance(data: PracticePerformance | null, options
   useEffect(() => {
     const raw = player.current;
     if (!raw || !data || !ready) return;
-    const start = data.chords[options.loopStart]?.start ?? 0;
-    const end = data.chords[Math.min(data.chords.length - 1, options.loopStart + (options.loop === "pair" ? 1 : 0))]?.end ?? data.duration;
-    raw.playbackRange = options.loop === "full" ? null : { startTick: Math.round(start * 1920), endTick: Math.round(end * 1920) };
+    const { start, end } = practiceRange(data, options.loop, options.loopStart);
+    raw.playbackRange = options.loop === "full" ? null : { startTick: Math.round(start * PERFORMANCE_TICKS_PER_SECOND), endTick: Math.round(end * PERFORMANCE_TICKS_PER_SECOND) };
+    if (position.current < start || position.current >= end) {
+      position.current = start; raw.tickPosition = Math.round(start * PERFORMANCE_TICKS_PER_SECOND);
+      if (latest.current.enabled) latest.current.onNotes(soundingMidi(data, start));
+    }
   }, [data, ready, options.loop, options.loopStart]);
 
   useEffect(() => {
@@ -113,6 +116,6 @@ export function usePracticePerformance(data: PracticePerformance | null, options
     return started;
   }
   return { ready, error, playFromGesture, getTime: () => position.current, pauseNow: () => player.current?.pause(), seekTime,
-    seekChord(index: number) { seekTime(data?.chords[index]?.start ?? 0); }
+    seekStep(index: number) { seekTime(data?.steps[index]?.start ?? 0); }
   };
 }

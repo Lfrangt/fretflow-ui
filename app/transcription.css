@@ -135,3 +135,59 @@
 
 .note-row input[type="checkbox"] { width: 18px; height: 18px; }
 .notation-track-picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+
+.solo-review-anchor { scroll-margin-top: 20px; }
+.solo-review { margin: 22px 0; padding: 20px; border: 1px solid #9aa58766; border-radius: 12px; background: #f4f6ef; }
+.solo-review > header p { max-width: 78ch; margin: 6px 0 16px; font-size: 13px; color: #625d51; }
+.solo-metrics { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 18px 0; }
+.solo-metrics dt { font-size: 12px; color: #6a645a; }
+.solo-metrics dd { margin: 5px 0 0; font-size: 23px; font-variant-numeric: tabular-nums; color: #414f35; }
+.solo-phrase-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 16px 0; }
+.solo-phrase-controls label { flex: 1; min-width: 0; }
+.solo-phrase-controls select { max-width: 100%; }
+.solo-note-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(145px,1fr)); gap: 9px; list-style: none; padding: 0; margin: 16px 0; }
+.solo-note-list li { min-width: 0; border: 1px solid #c9c3b8; border-radius: 10px; background: #fff9; overflow: hidden; }
+.solo-note-list li.active { border-color: #667d4f; box-shadow: inset 0 0 0 1px #667d4f; background: #e9efdf; }
+.transcription-body .solo-note-listen { display: flex; flex-direction: column; align-items: start; gap: 4px; width: 100%; border: 0; border-radius: 0; background: transparent; text-align: left; }
+.solo-note-listen strong { font-size: 20px; font-weight: 550; }
+.solo-note-listen span { font-size: 12px; color: #61704d; }
+.transcription-body .solo-note-edit { width: 100%; border: 0; border-top: 1px solid #c9c3b860; border-radius: 0; padding: 7px 12px; min-height: 38px; font-size: 12px; background: transparent; }
+@media(max-width: 700px) {
+  .solo-review { padding: 14px; }
+  .solo-note-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .solo-phrase-controls { align-items: stretch; flex-direction: column; }
+  .solo-metrics { gap: 16px; }
+  .solo-metrics dd { font-size: 20px; }
+  .transcription-result-nav { flex-wrap: wrap; }
+}
+
+/* Solo has note cards instead of a reserved chord-diagram column. */
+.practice-workspace.solo-practice .practice-chords button {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  height: 80px;
+  min-width: 104px;
+  flex-basis: 128px;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.practice-workspace.solo-practice .practice-chords button > span,
+.practice-workspace.solo-practice .practice-chords button > small {
+  grid-column: 1;
+  align-self: center;
+  justify-self: center;
+  margin: 0;
+  padding: 0;
+}
+.practice-workspace.solo-practice .practice-chords button > span { grid-row: 1; }
+.practice-workspace.solo-practice .practice-chords button > small { grid-row: 2; font-size: 11px; white-space: nowrap; }
+.solo-practice-empty { margin: 10px 0; font-size: 13px; color: #766b59; }
+.practice-workspace.solo-practice .practice-fingering-bar label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.practice-workspace.solo-practice .practice-fingering-bar select { min-height: 38px; max-width: 100%; font: inherit; border: 1px solid #c9c3b8; border-radius: 8px; padding: 6px 8px; background: #fff9; color: inherit; }
+@media (max-width: 900px) {
+  .practice-workspace.solo-practice .practice-fingering-bar select { min-height: 44px; font-size: 16px; }
+}
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1000px) {
+  .practice-workspace.solo-practice .practice-chords button { height: 68px; flex-basis: 116px; padding: 8px; gap: 5px; }
+}
