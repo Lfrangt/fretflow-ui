@@ -1,24 +1,37 @@
-.next
-node_modules
-.gstack/
+# Dependencies and build output (regenerated remotely)
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# VCS and local coordination (untracked, local-only)
+.git/
+.team-coord/
+DESIGN-IS-2026-09-16/
+
+# Native iOS project and build artifacts (4+ GB, local-only)
+ios/
+
+# Local models, caches and QA output
+.runtime/
+.venv-audio/
 .pytest_cache/
+__pycache__/
+vendor/
+output/
+verification/
 test-results/
+playwright-report/
+coverage/
 *.tsbuildinfo
 
-# Local prototype files from the pre-Next version.
-/index.html
-/app.js
-/styles.css
+# Generated at build time by scripts/prepare-notation.mjs
+public/alphatab/
 
-# Local QA screenshots and browser captures.
+# Root-level local QA captures
 /*.png
-
-# Model service is hosted separately from the web frontend.
-backend/
-ops/
-tests/
-vendor/
-.venv-audio
-.runtime/
-verification/
-output/
+/*.jpg
+/*.jpeg
+/*.webp
+/*.avif
