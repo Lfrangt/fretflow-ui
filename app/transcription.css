@@ -74,7 +74,34 @@
 .score-notices p { margin:5px 0; }
 .notation-panel { min-width:0; }
 .notation-panel>.transcription-actions { margin:18px 0; }
-.notation-paper { width:100%; min-height:220px; overflow:hidden; border:1px solid #ded8ce; background:white; border-radius:8px; color:#161616; }
+.notation-stage { position:relative; overflow:hidden; border:1px solid #ded8ce; border-radius:10px; background:#fff; }
+.notation-viewport { max-height:620px; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#a2a991 #f0eee8; }
+.notation-stage.is-scrolling .notation-viewport { max-height:460px; }
+.notation-paper { width:100%; min-height:220px; color:#161616; }
+.notation-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin:20px 0 12px; }
+.notation-view-switch { display:flex; gap:3px; padding:3px; border:1px solid #d8d5c9; border-radius:9px; background:#eeeee5; }
+.transcription-body .notation-view-switch button { min-height:34px; border:0; border-radius:6px; padding:6px 13px; background:transparent; font-size:12px; color:#6b6e5e; }
+.transcription-body .notation-view-switch button[aria-pressed="true"] { color:#35442d; background:#fffef9; box-shadow:0 1px 3px #30362212; }
+.transcription-body .notation-follow { display:flex; align-items:center; gap:7px; min-height:34px; padding:6px 10px; border-color:transparent; background:transparent; font-size:12px; color:#78796b; }
+.notation-follow::before { content:""; width:6px; height:6px; border-radius:50%; background:#a9ab9d; }
+.transcription-body .notation-follow[aria-pressed="true"] { color:#4d633d; }
+.notation-follow[aria-pressed="true"]::before { background:#728957; }
+.notation-transport { display:flex; align-items:center; gap:12px; padding:12px; border:1px solid #deded0; border-radius:10px; background:#edeee4; }
+.transcription-body .notation-play { flex-shrink:0; min-height:38px; padding:8px 14px; border-color:#526444; background:#526444; color:#fffef6; font-size:12px; }
+.transcription-body .notation-play:hover:enabled { background:#415334; border-color:#415334; }
+.transcription-body .notation-seek { width:100%; flex:1; min-width:70px; height:30px; min-height:30px; padding:0; border:0; background:transparent; accent-color:#667d4f; cursor:pointer; }
+.notation-time { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.transcription-body .notation-speed { min-height:34px; padding:6px 8px; font-size:12px; border-color:#d4d7c7; background:#fafbf5; }
+.notation-timing-note { display:block; margin:8px 2px 12px; }
+.notation-empty { font-size:13px; color:#73654f; }
+.notation-fixed-cursor { display:none; pointer-events:none; position:absolute; z-index:2; left:var(--score-cursor-x); top:16px; bottom:16px; width:2px; background:#69814c; box-shadow:0 0 0 4px #69814c0b; }
+.notation-fixed-cursor::before { content:""; position:absolute; top:0; left:-3px; width:8px; height:8px; border-radius:50%; background:#69814c; }
+.notation-stage.is-following .notation-fixed-cursor { display:block; }
+.notation-stage.is-following .at-cursor-beat { visibility:hidden; }
+.notation-stage:not(.is-written-cursor) .at-cursor-beat,.notation-stage:not(.is-written-cursor) .at-cursor-bar { visibility:hidden; }
+.notation-stage.is-score-end .at-cursor-beat,.notation-stage.is-score-end .at-cursor-bar { visibility:hidden; }
+.notation-secondary { margin:14px 0!important; }
+.transcription-body .notation-secondary button { font-size:12px; padding:7px 10px; min-height:34px; background:#fff9; }
 .notation-credit { display:block; text-align:right; padding:6px; }
 .at-cursor-bar { background:#6c874e1a; }.at-cursor-beat { background:#7c984b90; width:3px; }.at-selection div { background:#778d6233; }
 .transcription-notes { margin-top:24px; }
@@ -84,6 +111,11 @@
 .note-row.excluded { opacity:.65; }
 .note-row input { width:110px; }.note-row select { width:90px; }
 @media(max-width:700px) {
+  .notation-transport { flex-wrap:wrap; gap:8px 10px; padding:10px; }
+  .notation-transport .notation-seek { order:4; flex-basis:100%; }
+  .notation-time { margin-left:auto; }
+  .notation-viewport { max-height:520px; }
+  .notation-stage.is-scrolling .notation-viewport { max-height:420px; }
   .transcription-dialog { width:100vw; height:100dvh; margin:0; border-radius:0; border:0; }
   .transcription-header { padding:16px; }.transcription-header h2 { font-size:19px; }.transcription-header button { padding:8px; font-size:12px; }
   .transcription-body { padding:0 16px 32px; }.transcription-import { grid-template-columns:1fr; gap:16px; }.media-drop { min-height:150px; }
