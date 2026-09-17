@@ -38,7 +38,7 @@ body { overflow: auto; }
 .instrument-photo-material { width: 100%; height: 100%; transform-origin: 65% 50%; mask-image: var(--dissolve-mask); -webkit-mask-image: var(--dissolve-mask); }
 .instrument-headstock { position: absolute; left: calc(var(--neck-x) - var(--headstock-width)); top: calc(var(--neck-y) - var(--neck-height)); width: calc(var(--headstock-width) + 2px); height: calc(var(--neck-height) * 3); overflow: hidden; pointer-events: none; }
 .instrument-headstock img { position: absolute; left: 0; top: calc(var(--headstock-photo-y) + var(--neck-height)); width: var(--headstock-photo-width); height: auto; max-width: none; transform: rotate(180deg); user-select: none; }
-.legacy-photo .instrument-headstock { opacity: .8; mix-blend-mode: multiply; }
+.legacy-photo .instrument-headstock { mix-blend-mode: multiply; }
 .legacy-photo .instrument-headstock img { filter: saturate(.7); }
 .stage-focus-toggle { position: absolute; z-index: 4; top: 12px; right: 8px; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 9px 14px; border: 1px solid #c4bba333; border-radius: 99px; background: #fffcf380; color: #786e5b; backdrop-filter: blur(16px); box-shadow: inset 0 1px #ffffffa6; font-size: 12px; cursor: pointer; transition: background 220ms, color 220ms, border-color 220ms; }
 .stage-focus-toggle:hover { background: #fffdf5e6; color: #3c422e; }

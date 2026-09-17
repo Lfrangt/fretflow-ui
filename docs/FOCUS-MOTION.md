@@ -19,4 +19,6 @@ Only entry/exit change the scene geometry, retaining the 1.2s scene and 1.35s ma
 
 The ordinary joined scene now includes the selected photograph's own headstock, cropped at its calibrated nut and aligned to all six teaching-string lanes. A longer teaching neck gives the body more room on the right; 80px desktop chord cards return another 10px to the stage. The headstock fades with the body during Focus and returns on exit. Whole-photo phone views keep the original full guitar.
 
+The original Relic Strat uses `fender-guitar-cutout.png`, a true RGBA cutout at the original 2700×1040 coordinates. Its RGB pixels are unchanged; only the edge-connected neutral backdrop and baked shadow were removed from alpha. Both the whole-photo view and the joined body/headstock use this same asset, and the legacy headstock shares the body's 0.8 opacity. A rectangular crop or multiply blend alone is not background removal. Other guitar assets already contain transparency.
+
 Verification covers intermediate entering/exiting states, high-position following, stable nearby shapes, manual browsing, Escape, retained chord selection, reduced motion, and phone overflow. Tests, TypeScript and the production build must pass before publication. Static screenshots of the two endpoints alone do not verify the transition.

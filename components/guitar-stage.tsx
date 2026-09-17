@@ -177,7 +177,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
         </motion.div>
       </div>
       <motion.div className="instrument-headstock" initial={false} aria-hidden="true"
-        animate={{ opacity: layout.joined && !focusMode ? 1 : 0, filter: focusMode ? "blur(22px)" : "blur(0px)" }} transition={focusTransition}>
+        animate={{ opacity: layout.joined && !focusMode ? (guitar.legacy ? .8 : 1) : 0, filter: focusMode ? "blur(22px)" : "blur(0px)" }} transition={focusTransition}>
         <img src={guitar.image} alt="" draggable={false} />
       </motion.div>
       <motion.div className="learning-neck" initial={false} animate={{ opacity: showNeck ? 1 : 0 }} transition={focusTransition} aria-hidden={!showNeck}>

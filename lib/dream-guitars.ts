@@ -11,7 +11,7 @@ export type DreamGuitar = {
 };
 
 export const dreamGuitars: DreamGuitar[] = [
-  { id: "relic-sunburst", model: "Relic Strat", finish: "Original sunburst", family: "Original", image: "/assets/fender-guitar-clean.png", maple: false, legacy: true, joinX: .655, centerY: 1040 / 2700 - .218, photoScale: 15.3, nutX: .195, scaleLength: .65, aspect: 2700 / 1040,
+  { id: "relic-sunburst", model: "Relic Strat", finish: "Original sunburst", family: "Original", image: "/assets/fender-guitar-cutout.png", maple: false, legacy: true, joinX: .655, centerY: 1040 / 2700 - .218, photoScale: 15.3, nutX: .195, scaleLength: .65, aspect: 2700 / 1040,
     photoStrings: { nut: [403 / 2700, 497 / 2700], bridge: [377 / 2700, 523 / 2700] } },
   ...sources.map(source => {
     const jazzmaster = source.id.startsWith("jazzmaster");
