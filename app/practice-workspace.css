@@ -378,6 +378,23 @@ body { overflow: auto; }
 .harmony-chords button > small { grid-column: 1/-1; color: #928572; font-size: 11px; }
 .practice-workspace .harmony-chords button[aria-pressed="true"] { background: #ece5d74d; border-radius: 10px; }
 .harmony-degree { font-family: ui-serif,Georgia,serif; font-size: 18px; }
+.harmony-scales { display: grid; gap: 12px; padding-block: 20px 4px; border-top: 1px solid #bba88940; }
+.harmony-scales > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.harmony-scales h3 { margin: 0; color: #605646; font-size: 15px; font-weight: 550; }
+.harmony-scales > header > strong { font-size: 18px; font-weight: 500; }
+.harmony-scale-options { display: flex; flex-wrap: wrap; gap: 7px; }
+.practice-workspace .harmony-scale-options button { min-height: 44px; padding: 9px 12px; border: 1px solid #bba88955; border-radius: 12px; background: #fffdf855; color: #75654c; font-size: 12px; text-align: left; }
+.practice-workspace .harmony-scale-options button[aria-pressed="true"] { border-color: #9a875f; background: #e9e0cc99; color: #4e432f; }
+.harmony-scale-detail { display: grid; gap: 12px; }
+.harmony-scale-reason, .harmony-scale-key { margin: 0; font-size: 12px; line-height: 1.65; color: #75654c; }
+.harmony-scale-key { color: #587259; }
+.harmony-scale-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(38px, 1fr)); gap: 6px; padding: 0; margin: 0; list-style: none; }
+.harmony-scale-notes li { display: grid; gap: 5px; text-align: center; padding: 9px 3px; border: 1px solid #bba88930; border-radius: 9px; color: #8c7e68; }
+.harmony-scale-notes li > span:first-child { font-size: 10px; }
+.harmony-scale-notes li > strong { font-size: 14px; font-weight: 500; }
+.harmony-scale-notes li[data-chord-tone="true"] { background: #e7dcc5aa; border-color: #ac98695c; color: #51432d; }
+.harmony-scale-notes li[data-chord-tone="true"] > strong { font-weight: 650; }
+.harmony-scales .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @media (max-width: 600px) {
   .practice-chords { gap: 3px; }
   .practice-chords button { flex-basis: 62px; height: 144px; }

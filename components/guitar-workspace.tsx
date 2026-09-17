@@ -21,6 +21,7 @@ import { WorkspaceIcon, type IconName } from "./workspace-icon";
 import type { Transcription } from "@/lib/transcription";
 import type { KeyName } from "@/lib/harmony";
 import { KEYS, chordDegree, detectKey, presetKeys } from "@/lib/harmony";
+import { HarmonyScales } from "./harmony-scales";
 import { practicePerformance, soundingMidi, midiName, notePositions, type PracticePerformance } from "@/lib/practice-performance";
 import { usePracticePerformance } from "./use-practice-performance";
 import { usePracticeRecording } from "./use-practice-recording";
@@ -1021,6 +1022,8 @@ export function GuitarWorkspace() {
         <div className="harmony-key"><span className="eyebrow">{importedHarmony?.progression === progressionText ? t("Imported analysis") : keyChoice === "auto" ? t("Suggested key") : t("Selected key")}</span><strong>{localize(displayedKey)}</strong><select className="harmony-key-select" aria-label={t("Analysis key reference")} value={keyChoice} onChange={event => { setImportedHarmony(null); setKeyChoice(event.target.value as "auto" | KeyName); }}><option value="auto">{t("Auto")}</option>{KEYS.map(key => <option key={key} value={key}>{key} {t("major")}</option>)}</select></div>
         <p className="field-hint">{t("Follow the chord degrees across your progression. The small diagrams show finger numbers; the large fretboard shows intervals.")}</p>
         <div className="harmony-chords">{progression.map((chord, index) => <button key={`${chord}-${index}`} aria-pressed={activeIndex === index} onClick={() => selectChord(index)}><strong>{chord}</strong><span className="harmony-degree">{degrees[index]}</span><small>{t("Voicing")} · {(connectedShapes[index] ?? []).map(marker => marker.interval).join(" · ")}</small></button>)}</div>
+        <HarmonyScales key={`${activeChord}-${keyChoice}`} chord={activeChord} referenceKey={keyChoice === "auto" ? undefined : keyChoice}
+          pitchClasses={markers.map(marker => (openStringMidi[marker.string] + marker.fret) % 12)} />
         <p className="field-hint">{importedHarmony?.progression === progressionText ? t("Key and chord degrees come from your imported analysis.") : t("Auto suggests a major-key reference. Change the key if your song resolves elsewhere.")}</p>
         <button className="secondary-button" onClick={() => { closePanel(); setIsPlaying(false); setTranscriptionOpen(true); }}><WorkspaceIcon name="import" size={17} />{t("Analyze video / audio")}</button>
       </div> : null}
