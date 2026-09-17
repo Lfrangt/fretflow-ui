@@ -59,9 +59,6 @@ pnpm-debug.log*
 /public/assets/fender-stratocaster.svg
 .gstack/
 
-# Local Fender reference photos; sources and calibration remain versioned.
-/public/assets/dream-guitars/*.png
-
 # Local transcription models and private files
 .runtime/
 .venv-audio

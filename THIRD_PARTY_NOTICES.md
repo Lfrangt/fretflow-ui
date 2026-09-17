@@ -86,6 +86,19 @@ Demucs distribution. Its URL and full SHA-256 are pinned as `demucs_vocals` in
 `models.lock.json`. The code uses the same Demucs 4.0.1 MIT license retained in
 `licenses/Demucs-MIT.txt`. Model files and user-derived audio are not committed.
 Upstream: https://github.com/facebookresearch/demucs
+
+## Fender product photography
+
+The Dream Guitar picker bundles six Fender product photos
+(`public/assets/dream-guitars/*.png`), retrieved 2026-09-14 from Fender's
+official store CDN. Per-photo source page and image URLs are recorded in
+`public/assets/dream-guitars/sources.json`; `scripts/fetch-dream-guitars.py`
+re-downloads them. These photographs remain Fender's copyrighted product
+photography: they are not covered by this repository's MIT license, and no
+redistribution or commercial-use license has been verified. They are bundled at
+the site owner's decision to show the instruments referenced by the product;
+replace them with licensed or original photography before any broader
+distribution.
 # PDF exports
 
 - pdf-lib 1.17.1 - MIT - https://github.com/Hopding/pdf-lib. Used on demand in the browser to package A4 chord charts and alphaTab-rendered notation as downloadable PDFs.

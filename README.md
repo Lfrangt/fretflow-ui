@@ -83,7 +83,7 @@ Build before the standalone type check in a fresh checkout so Next.js generates 
 
 Application code is [MIT licensed](LICENSE). Third-party software, fonts, soundfonts, models and photographs retain their own terms; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-The guitar soundfont is included with its license and provenance. Model weights, datasets, user recordings, outputs, credentials and local verification captures are excluded. Extra Fender reference photos in the optional Dream Guitar picker are not bundled; the default guitar asset remains available. Sources/calibration are versioned, and `scripts/fetch-dream-guitars.py` can retrieve the references for local review. An unconfigured optional photo choice may show no photo. No redistribution license for Fender photography has been verified; these photos are not covered by MIT.
+The guitar soundfont is included with its license and provenance. Model weights, datasets, user recordings, outputs, credentials and local verification captures are excluded. The optional Dream Guitar picker bundles Fender product photography retrieved from Fender's official store pages; per-photo sources and calibration are versioned in `public/assets/dream-guitars/sources.json`, and `scripts/fetch-dream-guitars.py` can re-retrieve the references. These photographs are not covered by the repository's MIT license and no redistribution or commercial-use license has been verified; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Contribute / 一起共建
 
