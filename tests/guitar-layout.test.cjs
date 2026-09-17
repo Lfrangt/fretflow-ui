@@ -17,7 +17,7 @@ function load(name) {
 }
 
 const { dreamGuitars } = load('dream-guitars');
-const { fretCell, fretDistance, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, neckProfile, neckStringY, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
+const { fretCell, fretDistance, photoMarkerPosition, photoCallouts, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, neckProfile, neckStringY, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
 test('photo C shape lands on measured strings instead of above the photographed neck', () => {
@@ -30,6 +30,28 @@ test('photo C shape lands on measured strings instead of above the photographed 
   }
 });
 
+test('each catalog photo fits its actual crop and measured fret-eight outer strings', () => {
+  // Independently observed pixel landmarks in the rotated source PNGs, not the
+  // teaching grid. These include the Jazzmaster from the reported phone image.
+  const photos = [
+    ['jazzmaster-coral-red', 670, 804, 294, 374],
+    ['strat-olympic-white', 649, 842.5, 280, 365],
+    ['strat-surf-green', 651, 843.5, 284, 368],
+    ['strat-dark-night', 651, 841.5, 286, 370],
+    ['tele-aquatone-blue', 656, 830.5, 288, 374],
+    ['tele-butterscotch', 651, 835.5, 286, 372],
+  ];
+  for (const [id, height, x, top, bottom] of photos) {
+    const guitar = dreamGuitars.find(g => g.id === id);
+    close(2000 / guitar.aspect, height);
+    for (let string = 1; string <= 6; string++) {
+      const point = photoMarkerPosition(guitar, string, 8);
+      assert.ok(Math.abs(point.x * 2000 - x) < 2, `${id} fret-eight cell`);
+      assert.ok(Math.abs(point.y * height - (top + (bottom - top) * (string - 1) / 5)) < 1.5, `${id} string ${string}`);
+    }
+  }
+});
+
 test('right-handed horizontal fretboards put the treble strings above the bass, like TAB', () => {
   const openD = [
     { string: 4, fret: 0, midi: 50 }, { string: 3, fret: 2, midi: 57 },
@@ -39,6 +61,24 @@ test('right-handed horizontal fretboards put the treble strings above the bass, 
   assert.deepEqual(topToBottom.map(note => note.midi), [66, 62, 57, 50]);
   close(rightHandedStringPosition(1), 0);
   close(rightHandedStringPosition(6), 1);
+});
+
+test('whole-photo labels clear the neck and one another while contact dots fit between strings', () => {
+  for (const guitar of dreamGuitars) for (const width of [260, 340, 460]) {
+    const markers = Array.from({ length: 6 }, (_, i) => ({ string: i + 1, fret: 8 }));
+    const { labels, diameter } = photoCallouts(guitar, markers, width);
+    const height = width / guitar.aspect;
+    const top = photoMarkerPosition(guitar, 1, 8).y * height;
+    const bottom = photoMarkerPosition(guitar, 6, 8).y * height;
+    assert.ok(diameter < (bottom - top) / 5, 'the small contacts cannot overlap adjacent strings');
+    labels.forEach((label, i) => {
+      assert.ok(label.x * width >= 12 && label.x * width <= width - 12);
+      assert.ok(i < 3 ? label.y * height + 10 <= top - 8 + 1e-9 : label.y * height - 10 >= bottom + 8 - 1e-9);
+      labels.forEach((other, j) => {
+        if (i !== j && (i < 3) === (j < 3)) assert.ok(Math.abs(label.x - other.x) * width >= 28 - 1e-9);
+      });
+    });
+  }
 });
 
 test('every guitar keeps its rotated photo and learning neck on the same string axis', () => {

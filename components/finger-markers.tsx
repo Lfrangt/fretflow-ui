@@ -6,20 +6,21 @@ import { fingerMotionDuration, reconcileFingers, restingFinger, sameContact, sam
 
 const colorClass = (interval: string) => interval === "R" ? "root" : ["3", "b3"].includes(interval) ? "third" : ["5", "b5", "#5"].includes(interval) ? "fifth" : interval.includes("7") ? "seventh" : "extension";
 type Position = { x: number; y: number };
+type PhotoLayout = { width: number; height: number; scale: number; diameter: number; labels: Position[] };
 
-export function FingerMarkers({ markers, position, duration, photo = false, immediate = false }: {
-  markers: FingerContact[]; position: (marker: FingerContact) => Position; duration: number; photo?: boolean; immediate?: boolean;
+export function FingerMarkers({ markers, position, duration, photo = false, immediate = false, photoLayout }: {
+  markers: FingerContact[]; position: (marker: FingerContact) => Position; duration: number; photo?: boolean; immediate?: boolean; photoLayout?: PhotoLayout;
 }) {
   const signature = JSON.stringify(markers);
   const [state, setState] = useState(() => ({ signature, ...reconcileFingers({ tracks: [], nextId: 0 }, markers, true) }));
   if (state.signature !== signature) setState({ signature, ...reconcileFingers(state, markers) });
-  return <AnimatePresence initial={false}>{state.tracks.map(track => <FingerMarker key={track.id}
-    marker={track.marker} position={position(track.marker)} entering={track.entering} photo={photo}
+  return <AnimatePresence initial={false}>{state.tracks.map((track, i) => <FingerMarker key={track.id}
+    marker={track.marker} position={position(track.marker)} entering={track.entering} photo={photo} photoLayout={photoLayout} callout={photoLayout?.labels[i]}
     duration={immediate ? 0 : fingerMotionDuration(duration)} />)}</AnimatePresence>;
 }
 
-function FingerMarker({ marker, position, duration, entering, photo }: {
-  marker: FingerContact; position: Position; duration: number; entering: boolean; photo: boolean;
+function FingerMarker({ marker, position, duration, entering, photo, photoLayout, callout }: {
+  marker: FingerContact; position: Position; duration: number; entering: boolean; photo: boolean; photoLayout?: PhotoLayout; callout?: Position;
 }) {
   const isPresent = useIsPresent();
   const initial = { ...restingFinger(position.x, position.y), opacity: entering && duration ? 0 : 1 };
@@ -31,6 +32,8 @@ function FingerMarker({ marker, position, duration, entering, photo }: {
   const roll = useMotionValue(0), scaleX = useMotionValue(1), scaleY = useMotionValue(1), opacity = useMotionValue(initial.opacity), pressure = useMotionValue(1);
   const left = useTransform(x, value => `${value * 100}%`), top = useTransform(y, value => `${value * 100}%`);
   const labelRotation = useTransform(roll, value => -value);
+  const lineX = useTransform(x, value => value * (photoLayout?.width ?? 1));
+  const lineY = useTransform(() => y.get() * (photoLayout?.height ?? 1) + lift.get());
   const shadow = useTransform(pressure, value => `inset 0 1px 1px #fff8, 0 ${1 + (1 - value) * 6}px ${2 + (1 - value) * 8}px rgb(0 0 0 / ${.16 + value * .1})`);
   const contact = `${marker.string}:${marker.fret}:${marker.finger}`;
   useLayoutEffect(() => {
@@ -68,11 +71,19 @@ function FingerMarker({ marker, position, duration, entering, photo }: {
   const exit = { opacity: 0, transition: { duration: Math.min(.1, duration * .25) } };
   return <>
     <motion.span className={`practice-note ${colorClass(marker.interval)}`} data-finger={marker.finger} data-string={marker.string} data-fret={marker.fret} data-motion="finger"
-      style={{ left, top, y: lift, rotate: roll, scaleX, scaleY, opacity, boxShadow: shadow }} exit={exit} aria-hidden="true">
+      style={{ left, top, y: lift, rotate: roll, scaleX, scaleY, opacity, boxShadow: photoLayout ? "none" : shadow,
+        ...(photoLayout ? { width: photoLayout.diameter / photoLayout.scale, height: photoLayout.diameter / photoLayout.scale, borderWidth: .35 / photoLayout.scale } : {}) }} exit={exit} aria-hidden="true">
       {!photo && <motion.span style={{ rotate: labelRotation }}>{marker.interval}</motion.span>}
     </motion.span>
     {/* Only the disk owns the exit animation; both nodes share opacity. Two
         simultaneous animations on that value cancel each other's completion. */}
-    {photo && <motion.span className="photo-note-label" style={{ left, top, y: lift, opacity, zIndex: 6 }} aria-hidden="true">{marker.interval}</motion.span>}
+    {photo && photoLayout && callout ? <>
+      <motion.svg className="photo-note-leader" viewBox={`0 0 ${photoLayout.width} ${photoLayout.height}`} style={{ opacity }} aria-hidden="true">
+        <motion.line x1={lineX} y1={lineY} animate={{ x2: callout.x * photoLayout.width, y2: callout.y * photoLayout.height }} transition={{ duration }} strokeWidth={.65 / photoLayout.scale} />
+      </motion.svg>
+      <motion.span className={`photo-note-callout ${colorClass(marker.interval)}`} initial={false}
+        animate={{ left: `${callout.x * 100}%`, top: `${callout.y * 100}%` }} transition={{ duration }}
+        style={{ opacity, width: 24 / photoLayout.scale, height: 20 / photoLayout.scale, fontSize: 11 / photoLayout.scale, borderRadius: 7 / photoLayout.scale, borderWidth: 1 / photoLayout.scale }} aria-hidden="true">{marker.interval}</motion.span>
+    </> : photo && <motion.span className="photo-note-label" style={{ left, top, y: lift, opacity, zIndex: 6 }} aria-hidden="true">{marker.interval}</motion.span>}
   </>;
 }

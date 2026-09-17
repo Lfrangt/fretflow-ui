@@ -19,6 +19,29 @@ export function photoMarkerPosition(guitar: DreamGuitar, string: number, fret: n
   return { x: guitar.nutX + distance * guitar.scaleLength, y: (top + (bottom - top) * lane) * guitar.aspect };
 }
 
+/** Readable labels outside a small whole-guitar photo; contacts stay on strings. */
+export function photoCallouts(guitar: DreamGuitar, markers: { string: number; fret: number }[], width: number) {
+  const safeWidth = Math.max(1, width), height = safeWidth / guitar.aspect;
+  const points = markers.map(marker => photoMarkerPosition(guitar, marker.string, marker.fret));
+  const labels = points.map(point => ({ ...point }));
+  for (const above of [true, false]) {
+    const group = markers.map((marker, i) => ({ marker, i, point: points[i] }))
+      .filter(({ marker }) => (marker.string <= 3) === above)
+      .sort((a, b) => a.point.x - b.point.x || (above ? b.marker.string - a.marker.string : a.marker.string - b.marker.string));
+    if (!group.length) continue;
+    const edge = group.map(({ marker }) => photoMarkerPosition(guitar, above ? 1 : 6, marker.fret).y);
+    const y = (above ? Math.min(...edge) : Math.max(...edge)) + (above ? -18 : 18) / height;
+    const xs = group.map(({ point }) => point.x * safeWidth);
+    const placed = xs.reduce<number[]>((values, x, i) => [...values, i ? Math.max(x, values[i - 1] + 28) : x], []);
+    const shift = (xs.reduce((a, b) => a + b, 0) - placed.reduce((a, b) => a + b, 0)) / group.length;
+    const boundedShift = Math.min(safeWidth - 14 - placed.at(-1)!, Math.max(14 - placed[0], shift));
+    group.forEach(({ i }, j) => { labels[i] = { x: (placed[j] + boundedShift) / safeWidth, y }; });
+  }
+  const axes = guitar.photoStrings;
+  const gap = axes ? (axes.nut[1] - axes.nut[0]) * safeWidth / 5 : safeWidth * .8 / guitar.photoScale / 5;
+  return { labels, diameter: Math.min(3.2, gap * .76) };
+}
+
 /** Cell edges and centre, normalised to the visible length of the full neck. */
 export function fretCell(fret: number, fretCount = PRACTICE_FRET_COUNT) {
   const end = Math.min(fretCount, Math.max(1, fret));
