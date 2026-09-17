@@ -2,9 +2,9 @@
 
 Open **Tone Studio** from the practice controls or **Settings → Tone Studio**. The analysis result also exposes the same settings. This replaces the standalone tone-reference preview with a shared, live amp/effects chain.
 
-The studio is a graphite instrument surface within the existing light practice workspace. A darker header, light silver knobs and white labels separate the controls from the page and from light video backgrounds. Mint-teal arcs, selected amp tabs and On indicators show enabled states; inactive effects retain readable gray labels and values instead of fading the entire panel. Section headings use typography and a fine divider. Preset fields, keyboard focus, bypass, errors and saved-status text share the same scoped dark palette in both the settings sheet and analysis results.
+The studio keeps FretFlow’s light cream, sage and olive identity. A slightly denser sage header and translucent sage control surfaces separate the panels from the warm page. Milk-white knobs stand out against those tinted surfaces; medium-saturation olive arcs and pointers keep adjustments visible. Selected amp tabs use olive with cream text, while enabled effects use a stronger sage header and border. Body text, secondary labels and disabled values stay dark; bypass removes emphasis without fading whole panels. Section headings retain typography and a fine divider.
 
-Functional text is at least 11 px, with 12 px primary knob labels and 14 px values. On phones, buttons and select fields are at least 44 px high and effects use two columns. This replaces the earlier cream/olive Tone Studio after the user's September 17 contrast request; it does not change the light site theme, audio sources, audition timing or Focus.
+Functional text is at least 11 px, with 12 px primary knob labels and 14 px values. On phones, buttons and select fields are at least 44 px high and effects use two columns. The September 17 correction explicitly preserves the original color family and varies lightness, saturation and background opacity. It supersedes the briefly shipped graphite/teal interpretation, which was not the user's requested direction. Audio sources, audition timing and Focus are unchanged.
 
 ## Controls
 
