@@ -2,7 +2,9 @@
 
 Open **Tone Studio** from the practice controls or **Settings → Tone Studio**. The analysis result also exposes the same settings. This replaces the standalone tone-reference preview with a shared, live amp/effects chain.
 
-The studio follows the practice workspace palette: cream panels, warm gray text, olive active states and the same dark brown primary playback button. A deeper warm beige sheet header establishes the first level; shaded section headings separate amplifier, EQ and effects from the light controls beneath them. Selected amp tabs use solid olive, while enabled effects use a stronger olive header. Knobs keep subtle ivory shading; inputs, focus rings, bypass and disabled states use the light palette in both the settings sheet and analysis results.
+The studio is a graphite instrument surface within the existing light practice workspace. A darker header, light silver knobs and white labels separate the controls from the page and from light video backgrounds. Mint-teal arcs, selected amp tabs and On indicators show enabled states; inactive effects retain readable gray labels and values instead of fading the entire panel. Section headings use typography and a fine divider. Preset fields, keyboard focus, bypass, errors and saved-status text share the same scoped dark palette in both the settings sheet and analysis results.
+
+Functional text is at least 11 px, with 12 px primary knob labels and 14 px values. On phones, buttons and select fields are at least 44 px high and effects use two columns. This replaces the earlier cream/olive Tone Studio after the user's September 17 contrast request; it does not change the light site theme, audio sources, audition timing or Focus.
 
 ## Controls
 
