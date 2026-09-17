@@ -5,7 +5,7 @@ import { useLanguage } from "./language-provider";
 import { animate, motion } from "motion/react";
 import { useId, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { DreamGuitar } from "@/lib/dream-guitars";
-import { fretCell, photoMarkerPosition, photoCallouts, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, neckProfile, neckStringY, neckOutline, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } from "@/lib/guitar-layout";
+import { fretCell, photoMarkerPosition, photoMarkerDiameter, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, neckProfile, neckStringY, neckOutline, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } from "@/lib/guitar-layout";
 import { WorkspaceIcon } from "./workspace-icon";
 import { FingerMarkers } from "./finger-markers";
 
@@ -102,7 +102,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
   const ordinaryNoteSize = Math.min(30, (ordinaryProfile.nut[1] - ordinaryProfile.nut[0]) * 180 / 5 - 2);
   const neckLaneY = (string: number, x: number) => neckStringY(profile, string, gridStart + (1 - gridStart) * x) * 100;
   const scale = mobileFocus || desktopFocus ? 1 : Math.max(0, Math.min((space.width - 16) / layout.width, (space.height - (showNeck ? 20 : 64)) / layout.height, 1.15));
-  const photoLabels = photoCallouts(guitar, markers, layout.photoWidth * scale);
+  const photoDiameter = photoMarkerDiameter(guitar, layout.photoWidth * scale);
   const glideDuration = reduceMotion || noteMode ? 0 : isPlaying ? Math.min(.62, chordDurationMs / 1000 * .38) : .58;
   const scrollDuration = reduceMotion ? 0 : noteMode ? .22 : glideDuration;
   function stopScrollAnimation() { scrollAnimationRef.current?.stop(); }
@@ -197,7 +197,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
         </motion.div>
         <motion.div className="photo-voicing" initial={false} animate={{ opacity: showNeck ? 0 : 1 }} transition={focusTransition} role="img" aria-hidden={showNeck} aria-label={t("{chord} fingering on {model}", { chord, model: guitar.model })}>
           <FingerMarkers markers={markers} position={marker => photoMarkerPosition(guitar, marker.string, marker.fret)} duration={glideDuration} immediate={Boolean(reduceMotion) || noteMode} photo
-            photoLayout={{ ...photoLabels, width: layout.photoWidth, height: layout.photoWidth / guitar.aspect, scale: Math.max(.01, scale) }} />
+            photoLayout={{ diameter: photoDiameter, scale: Math.max(.01, scale) }} />
         </motion.div>
       </div>
       <motion.div className="instrument-headstock" initial={false} aria-hidden="true"

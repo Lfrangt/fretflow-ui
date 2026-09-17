@@ -17,7 +17,7 @@ function load(name) {
 }
 
 const { dreamGuitars } = load('dream-guitars');
-const { fretCell, fretDistance, photoMarkerPosition, photoCallouts, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, neckProfile, neckStringY, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
+const { fretCell, fretDistance, photoMarkerPosition, photoMarkerDiameter, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, neckProfile, neckStringY, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
 test('photo C shape lands on measured strings instead of above the photographed neck', () => {
@@ -63,21 +63,13 @@ test('right-handed horizontal fretboards put the treble strings above the bass, 
   close(rightHandedStringPosition(6), 1);
 });
 
-test('whole-photo labels clear the neck and one another while contact dots fit between strings', () => {
+test('whole-photo contact dots fit between strings', () => {
   for (const guitar of dreamGuitars) for (const width of [260, 340, 460]) {
-    const markers = Array.from({ length: 6 }, (_, i) => ({ string: i + 1, fret: 8 }));
-    const { labels, diameter } = photoCallouts(guitar, markers, width);
+    const diameter = photoMarkerDiameter(guitar, width);
     const height = width / guitar.aspect;
     const top = photoMarkerPosition(guitar, 1, 8).y * height;
     const bottom = photoMarkerPosition(guitar, 6, 8).y * height;
     assert.ok(diameter < (bottom - top) / 5, 'the small contacts cannot overlap adjacent strings');
-    labels.forEach((label, i) => {
-      assert.ok(label.x * width >= 12 && label.x * width <= width - 12);
-      assert.ok(i < 3 ? label.y * height + 10 <= top - 8 + 1e-9 : label.y * height - 10 >= bottom + 8 - 1e-9);
-      labels.forEach((other, j) => {
-        if (i !== j && (i < 3) === (j < 3)) assert.ok(Math.abs(label.x - other.x) * width >= 28 - 1e-9);
-      });
-    });
   }
 });
 
