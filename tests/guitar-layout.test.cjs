@@ -17,7 +17,7 @@ function load(name) {
 }
 
 const { dreamGuitars } = load('dream-guitars');
-const { fretCell, fretDistance, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
+const { fretCell, fretDistance, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
 test('photo C shape lands on measured strings instead of above the photographed neck', () => {
@@ -153,13 +153,37 @@ test('Focus shows the active position with context and keeps the fading body att
         const layout = focusGuitarLayout(guitar, width, 500, window);
         const screenX = fret => layout.cameraX + layout.neckX + 14 + fretCell(fret).center * (layout.neckWidth - 14);
         for (const fret of frets) assert.ok(screenX(fret) > 36 && screenX(fret) < width - 36, 'active note fits with room for its badge');
-        if (window.first > 1) assert.ok(screenX(1) < 0, 'unused low positions stay outside the viewport');
-        if (window.last < 21) assert.ok(screenX(21) > width, 'unused high positions stay outside the viewport');
+        assert.ok(screenX(1) < 0 || screenX(21) > width, 'Focus shows a local view of the continuous neck');
         close(layout.photoY + layout.photoWidth * guitar.centerY, layout.neckY + layout.neckHeight / 2);
         close(layout.photoX + layout.photoWidth * guitar.joinX, layout.neckX + layout.neckWidth + layout.jointWidth);
         assert.ok(layout.neckHeight >= 140 && layout.neckHeight <= 260);
       }
     }
+  }
+});
+
+test('Focus changes only camera position, never fret length or neck proportions', () => {
+  for (const width of [900, 1280, 1920]) {
+    const shots = [[1, 3], [7, 10], [15, 17], [20, 21]].map(frets =>
+      focusGuitarLayout(dreamGuitars[0], width, 500, fretboardWindow(frets, { first: 1, last: 8 })));
+    for (const shot of shots.slice(1)) {
+      for (const key of ['neckWidth', 'neckHeight', 'photoWidth', 'width', 'height']) close(shot[key], shots[0][key]);
+      for (let fret = 1; fret <= 21; fret++) close(fretCell(fret).width * (shot.neckWidth - 14), fretCell(fret).width * (shots[0].neckWidth - 14));
+    }
+    assert.ok(shots[0].cameraX > shots[2].cameraX);
+  }
+});
+
+test('ordinary joined guitar includes the selected headstock with all string lanes aligned', () => {
+  for (const guitar of dreamGuitars) {
+    const layout = guitarLayout(guitar, true, false);
+    const head = headstockLayout(guitar, layout.neckHeight);
+    close(layout.neckX - head.width, 32);
+    close(head.width / head.photoWidth, guitar.nutX);
+    const top = guitar.photoStrings?.nut[0] ?? guitar.centerY - .4 / guitar.photoScale;
+    const bottom = guitar.photoStrings?.nut[1] ?? guitar.centerY + .4 / guitar.photoScale;
+    close(head.photoY + top * head.photoWidth, layout.neckHeight * .1);
+    close(head.photoY + bottom * head.photoWidth, layout.neckHeight * .9);
   }
 });
 

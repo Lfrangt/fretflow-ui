@@ -50,7 +50,12 @@ export function focusGuitarLayout(guitar: DreamGuitar, width: number, height: nu
   const start = fretCell(window.first, fretCount).start;
   const end = fretCell(window.last, fretCount).end;
   const padding = Math.min(56, width * .055);
-  const gridWidth = Math.max(1, width - padding * 2) / (end - start);
+  const aperture = Math.max(1, width - padding * 2);
+  // Calibrate once against ten middle frets. A new hand position only pans
+  // this physical neck; fitting each window independently stretched every fret.
+  const referenceSpan = fretCell(Math.min(14, fretCount), fretCount).end - fretCell(Math.min(5, fretCount), fretCount).start;
+  const gridWidth = aperture / referenceSpan;
+  const offset = Math.max(0, Math.min(gridWidth - aperture, (start + end) * gridWidth / 2 - aperture / 2));
   const neckWidth = gridWidth + 14;
   const neckHeight = Math.max(140, Math.min(260, height * .48));
   const neckX = 40;
@@ -60,8 +65,18 @@ export function focusGuitarLayout(guitar: DreamGuitar, width: number, height: nu
     photoX: neckX + neckWidth + 22 - photoWidth * guitar.joinX,
     photoY: neckY + neckHeight / 2 - photoWidth * guitar.centerY, photoWidth,
     neckX, neckY, neckWidth, neckHeight, jointWidth: 22, joined: true,
-    cameraX: padding - neckX - 14 - start * gridWidth,
-    openX: 14 + start * gridWidth - 28 };
+    cameraX: padding - neckX - 14 - offset,
+    openX: 14 + offset - 28 };
+}
+
+/** The selected photograph's own headstock, cropped at its calibrated nut.
+ * Match its six string lanes to the teaching neck without deforming the photo.
+ */
+export function headstockLayout(guitar: DreamGuitar, neckHeight: number) {
+  const top = guitar.photoStrings?.nut[0] ?? guitar.centerY - .4 / guitar.photoScale;
+  const bottom = guitar.photoStrings?.nut[1] ?? guitar.centerY + .4 / guitar.photoScale;
+  const photoWidth = neckHeight * .8 / (bottom - top);
+  return { width: photoWidth * guitar.nutX, photoWidth, photoY: neckHeight * .1 - photoWidth * top };
 }
 
 /** Leave neighbouring frets around the shape and hold still inside that safe area. */
@@ -122,9 +137,9 @@ export function guitarLayout(guitar: DreamGuitar, focused: boolean, compact: boo
       photoX: 30, photoY: 370, photoWidth,
       neckX: 24, neckY: 64, neckWidth: 552, neckHeight: 220, jointWidth: 0, joined: false };
   }
-  const neckWidth = 1080;
-  const neckHeight = 150;
-  const neckX = 32;
+  const neckWidth = 1580;
+  const neckHeight = 180;
+  const neckX = 32 + headstockLayout(guitar, neckHeight).width;
   const jointWidth = 22;
   const photoWidth = neckHeight * guitar.photoScale;
   const photoX = neckX + neckWidth + jointWidth - photoWidth * guitar.joinX;

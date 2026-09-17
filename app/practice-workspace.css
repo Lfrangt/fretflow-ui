@@ -36,6 +36,10 @@ body { overflow: auto; }
 .instrument-composition { position: absolute; top: 0; left: 0; transform-origin: 0 0; overflow: visible; pointer-events: none; }
 .instrument-photo-frame { position: absolute; z-index: -1; width: var(--photo-width); aspect-ratio: var(--photo-aspect); left: var(--photo-x); top: var(--photo-y); pointer-events: none; perspective: 1400px; }
 .instrument-photo-material { width: 100%; height: 100%; transform-origin: 65% 50%; mask-image: var(--dissolve-mask); -webkit-mask-image: var(--dissolve-mask); }
+.instrument-headstock { position: absolute; left: calc(var(--neck-x) - var(--headstock-width)); top: calc(var(--neck-y) - var(--neck-height)); width: calc(var(--headstock-width) + 2px); height: calc(var(--neck-height) * 3); overflow: hidden; pointer-events: none; }
+.instrument-headstock img { position: absolute; left: 0; top: calc(var(--headstock-photo-y) + var(--neck-height)); width: var(--headstock-photo-width); height: auto; max-width: none; transform: rotate(180deg); user-select: none; }
+.legacy-photo .instrument-headstock { opacity: .8; mix-blend-mode: multiply; }
+.legacy-photo .instrument-headstock img { filter: saturate(.7); }
 .stage-focus-toggle { position: absolute; z-index: 4; top: 12px; right: 8px; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 9px 14px; border: 1px solid #c4bba333; border-radius: 99px; background: #fffcf380; color: #786e5b; backdrop-filter: blur(16px); box-shadow: inset 0 1px #ffffffa6; font-size: 12px; cursor: pointer; transition: background 220ms, color 220ms, border-color 220ms; }
 .stage-focus-toggle:hover { background: #fffdf5e6; color: #3c422e; }
 .stage-focus-toggle[aria-pressed="true"] { background: #e6eadfbd; color: #4c5e3d; border-color: #8f9d7859; }
@@ -490,8 +494,8 @@ body { overflow: auto; }
   .practice-workspace { grid-template-rows: 64px minmax(260px, 1fr) auto 28px; min-height: 590px; }
   .practice-dock { width: min(900px, 100%); padding: 4px 18px 9px; }
   .practice-chords { padding-block: 2px 8px; }
-  .practice-chords button { grid-template-columns: 68px minmax(0, 1fr); grid-template-rows: 1fr 1fr; column-gap: 5px; row-gap: 0; height: 90px; padding: 5px 9px; flex-basis: 165px; }
-  .practice-chords .chord-thumbnail { grid-row: 1 / 3; width: 68px; height: 76px; }
+  .practice-chords button { grid-template-columns: 62px minmax(0, 1fr); grid-template-rows: 1fr 1fr; column-gap: 5px; row-gap: 0; height: 80px; padding: 4px 9px; flex-basis: 165px; }
+  .practice-chords .chord-thumbnail { grid-row: 1 / 3; width: 62px; height: 68px; }
   .practice-chords button > span { justify-self: start; align-self: end; font-size: 21px; }
   .practice-chords button > small { justify-self: start; align-self: start; margin-top: 4px; }
   .practice-transport { padding-top: 7px; }

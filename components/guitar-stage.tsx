@@ -2,11 +2,12 @@
 
 import { useLanguage } from "./language-provider";
 
-import { animate, AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useId, useEffect, useRef, useState } from "react";
+import { animate, motion } from "motion/react";
+import { useId, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { DreamGuitar } from "@/lib/dream-guitars";
-import { fretCell, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } from "@/lib/guitar-layout";
+import { fretCell, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } from "@/lib/guitar-layout";
 import { WorkspaceIcon } from "./workspace-icon";
+import { FingerMarkers } from "./finger-markers";
 
 type Marker = { string: number; fret: number; interval: string; finger: number; midi?: number };
 const strings = ["e", "B", "G", "D", "A", "E"];
@@ -14,6 +15,12 @@ const colorClass = (interval: string) => interval === "R" ? "root" : ["3", "b3"]
 const stringY = (string: number) => 10 + rightHandedStringPosition(string) * 80;
 const focusEase = [.22, 1, .36, 1] as const;
 const glideEase = [.25, .8, .25, 1] as const;
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+const subscribeReducedMotion = (notify: () => void) => {
+  const query = window.matchMedia(reducedMotionQuery);
+  query.addEventListener("change", notify);
+  return () => query.removeEventListener("change", notify);
+};
 
 export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocusModeChange, isPlaying, chordDurationMs, onFocus, guitar, noteMode = false, tuning = "standard", preferredRange = { min: 1, max: 12 } }: {
   focusMode: boolean; onFocusModeChange: (value: boolean) => void;
@@ -21,7 +28,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
 }) {
   const { t } = useLanguage();
   const contourId = useId().replaceAll(":", "");
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(reducedMotionQuery).matches, () => false);
   const stageRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollAnimationRef = useRef<{ stop: () => void } | null>(null);
@@ -77,6 +84,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
   const desktopFocus = focusMode && !mobileFocus;
   const focusLayout = focusGuitarLayout(guitar, space.width, space.height, framing.window, lastFret);
   const layout = desktopFocus ? focusLayout : mobileFocus ? mobileFocusLayout(guitar, space.width, space.height - (phoneLandscape ? 44 : 94), visibleFrets) : guitarLayout(guitar, practiceView, compact, focusMode);
+  const headstock = headstockLayout(guitar, layout.neckHeight);
   const showNeck = practiceView || focusMode;
   const scale = mobileFocus || desktopFocus ? 1 : Math.max(0, Math.min((space.width - 16) / layout.width, (space.height - (showNeck ? 20 : 64)) / layout.height, 1.15));
   const glideDuration = reduceMotion || noteMode ? 0 : isPlaying ? Math.min(.62, chordDurationMs / 1000 * .38) : .58;
@@ -132,14 +140,14 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
     return () => { cancelAnimationFrame(frame); scrollAnimationRef.current?.stop(); };
   }, [mobileFocus, markerFrets, visibleFrets, space.width, layout.width, layout.neckX, layout.neckWidth, scrollDuration]);
   const focusTransition = { duration: reduceMotion ? 0 : 1.2, ease: focusEase };
-  const glideTransition = { duration: glideDuration, ease: glideEase };
   const sceneTarget = {
     width: layout.width, height: layout.height, scale,
     x: desktopFocus ? focusLayout.cameraX : mobileFocus ? 0 : (space.width - layout.width * scale) / 2,
     y: ((space.height - (mobileFocus ? phoneLandscape ? 44 : 94 : 0)) - layout.height * scale) / 2,
     marginTop: showNeck ? 0 : -22,
     "--focus-open-x": `${focusLayout.openX}px`, "--photo-width": `${layout.photoWidth}px`, "--photo-x": `${layout.photoX}px`, "--photo-y": `${layout.photoY}px`, "--photo-aspect": guitar.aspect,
-    "--neck-x": `${layout.neckX}px`, "--neck-y": `${layout.neckY}px`, "--neck-width": `${layout.neckWidth}px`, "--neck-height": `${layout.neckHeight}px`, "--joint-width": `${layout.jointWidth}px`, "--focus-note-size": `${Math.min(28, layout.neckHeight * .15)}px`
+    "--neck-x": `${layout.neckX}px`, "--neck-y": `${layout.neckY}px`, "--neck-width": `${layout.neckWidth}px`, "--neck-height": `${layout.neckHeight}px`, "--joint-width": `${layout.jointWidth}px`, "--focus-note-size": `${Math.min(28, layout.neckHeight * .15)}px`,
+    "--headstock-width": `${headstock.width}px`, "--headstock-photo-width": `${headstock.photoWidth}px`, "--headstock-photo-y": `${headstock.photoY}px`
   };
   const dissolveMask = focusMode
     ? "linear-gradient(90deg, #000 15%, transparent 65%)"
@@ -165,14 +173,13 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
           <img className="instrument-photo" src={guitar.image} alt={`${guitar.model} — ${guitar.finish}`} draggable={false} />
         </motion.div>
         <motion.div className="photo-voicing" initial={false} animate={{ opacity: showNeck ? 0 : 1 }} transition={focusTransition} role="img" aria-hidden={showNeck} aria-label={t("{chord} fingering on {model}", { chord, model: guitar.model })}>
-          <AnimatePresence initial={false}>{markers.map(marker => <motion.span key={marker.string} className={`practice-note ${colorClass(marker.interval)}`} initial={{ opacity: 0 }}
-            animate={{ left: `${photoMarkerPosition(guitar, marker.string, marker.fret).x * 100}%`, top: `${photoMarkerPosition(guitar, marker.string, marker.fret).y * 100}%`, opacity: 1 }}
-            exit={{ opacity: 0 }} transition={glideTransition} />)}</AnimatePresence>
-          <div className="photo-note-labels" aria-hidden="true"><AnimatePresence initial={false}>{markers.map(marker => <motion.span key={marker.string} className="photo-note-label" initial={{ opacity: 0 }}
-            animate={{ left: `${photoMarkerPosition(guitar, marker.string, marker.fret).x * 100}%`, top: `${photoMarkerPosition(guitar, marker.string, marker.fret).y * 100}%`, opacity: 1 }}
-            exit={{ opacity: 0 }} transition={glideTransition}>{marker.interval}</motion.span>)}</AnimatePresence></div>
+          <FingerMarkers markers={markers} position={marker => photoMarkerPosition(guitar, marker.string, marker.fret)} duration={glideDuration} immediate={Boolean(reduceMotion) || noteMode} photo />
         </motion.div>
       </div>
+      <motion.div className="instrument-headstock" initial={false} aria-hidden="true"
+        animate={{ opacity: layout.joined && !focusMode ? 1 : 0, filter: focusMode ? "blur(22px)" : "blur(0px)" }} transition={focusTransition}>
+        <img src={guitar.image} alt="" draggable={false} />
+      </motion.div>
       <motion.div className="learning-neck" initial={false} animate={{ opacity: showNeck ? 1 : 0 }} transition={focusTransition} aria-hidden={!showNeck}>
         {noteMode || desktopFocus ? <div className="neck-open-strings" aria-hidden="true">{markers.filter(marker => marker.fret === 0).map(marker => <span key={marker.midi ?? marker.string}
           data-midi={marker.midi} data-string={marker.string} data-fret={0} className={`practice-note open-string ${colorClass(marker.interval)}`}
@@ -194,12 +201,8 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
             <div className="neck-inlays" aria-hidden="true">{[3, 5, 7, 9, 12, 15, 17, 19, 21].filter(fret => fret >= firstFret && fret < firstFret + visibleFrets).map(fret => <b className={fret === 12 ? "double" : ""} key={fret} data-fret={fret} style={{ left: `${fretCell(fret, lastFret).center * 100}%` }} />)}</div>
             <div className="neck-strings" aria-hidden="true">{(tuning === "drop-d" && noteMode ? [...strings.slice(0, -1), "D"] : strings).map((name, i) => <span key={i} data-string={i + 1} style={{ top: `${stringY(i + 1)}%`, height: `${1.2 + i * .32}px` }}><small>{name}</small></span>)}</div>
             {noteMode ? markers.filter(marker => marker.fret > 0).map(marker => <span key={`midi-${marker.midi}`} data-midi={marker.midi} data-string={marker.string} data-fret={marker.fret} className={`practice-note ${colorClass(marker.interval)}`}
-              style={{ top: `${stringY(marker.string)}%`, left: `${markerX(marker.fret) * 100}%` }} aria-hidden="true">{marker.interval}</span>) : <AnimatePresence initial={false}>{markers.filter(marker => !desktopFocus || marker.fret > 0).map(marker => <motion.span key={`string-${marker.string}`} data-string={marker.string} data-fret={marker.fret} className={`practice-note ${colorClass(marker.interval)}`}
-              style={{ top: `${stringY(marker.string)}%` }}
-              initial={{ left: `${markerX(marker.fret) * 100}%`, opacity: 0, scale: .92 }} animate={{ left: `${markerX(marker.fret) * 100}%`, opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: .92 }} transition={{ ...glideTransition, opacity: { duration: reduceMotion || noteMode ? 0 : .18 } }} aria-hidden="true">
-              {marker.interval}
-            </motion.span>)}</AnimatePresence>}
+              style={{ top: `${stringY(marker.string)}%`, left: `${markerX(marker.fret) * 100}%` }} aria-hidden="true">{marker.interval}</span>) : <FingerMarkers markers={markers.filter(marker => !desktopFocus || marker.fret > 0)}
+                position={marker => ({ x: markerX(marker.fret), y: stringY(marker.string) / 100 })} duration={glideDuration} immediate={Boolean(reduceMotion)} />}
           </div>
         </div>
         <div className="neck-caption"><strong>{chord}</strong><span>{degree}</span><i /><span>{noteMode ? t("Suggested note positions") : isPlaying ? t("Following the progression") : t("Find the shape. Hear the movement.")}</span></div>
