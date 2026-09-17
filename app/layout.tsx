@@ -10,6 +10,7 @@ import "./language.css";
 import "./mobile-practice.css";
 import "./chord-finder.css";
 import "./tone-rig.css";
+import "./home-practice-score.css";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 

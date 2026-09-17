@@ -230,7 +230,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
               {(tuning === "drop-d" && noteMode ? [...strings.slice(0, -1), "D"] : strings).map((name, i) => <small key={i}
                 style={{ top: `${neckLaneY(i + 1, 8 / Math.max(1, layout.neckWidth - 14))}%` }}>{name}</small>)}
             </> : (tuning === "drop-d" && noteMode ? [...strings.slice(0, -1), "D"] : strings).map((name, i) => <span key={i} data-string={i + 1} style={{ top: `${stringY(i + 1)}%`, height: `${1.2 + i * .32}px` }}><small>{name}</small></span>)}</div>
-            {noteMode ? markers.filter(marker => marker.fret > 0).map(marker => <span key={`midi-${marker.midi}`} data-midi={marker.midi} data-string={marker.string} data-fret={marker.fret} className={`practice-note ${colorClass(marker.interval)}`}
+            {noteMode ? markers.filter(marker => marker.fret > 0).map(marker => <span key={`midi-${marker.midi}-${marker.string}-${marker.fret}`} data-midi={marker.midi} data-string={marker.string} data-fret={marker.fret} className={`practice-note ${colorClass(marker.interval)}`}
               style={{ top: `${neckLaneY(marker.string, markerX(marker.fret))}%`, left: `${markerX(marker.fret) * 100}%` }} aria-hidden="true">{marker.interval}</span>) : <FingerMarkers markers={markers.filter(marker => !desktopFocus || marker.fret > 0)}
                 position={marker => ({ x: markerX(marker.fret), y: neckLaneY(marker.string, markerX(marker.fret)) / 100 })} duration={glideDuration} immediate={Boolean(reduceMotion)} />}
           </div>

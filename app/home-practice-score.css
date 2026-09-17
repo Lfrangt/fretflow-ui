@@ -1,0 +1,57 @@
+/* The score stays below the existing live guitar, within its current dock. */
+.home-score-layout.practice-workspace { height:auto; min-height:100dvh; overflow:visible; }
+.home-score-layout .practice-dock { min-width:0; }
+.home-practice-display-modes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:3px; padding:3px; margin:5px 0 8px; border:1px solid #d7ddc9; border-radius:99px; background:#edf0e5; }
+.home-score-layout .home-practice-display-modes button { min-width:0; min-height:44px; border:0; border-radius:99px; padding:8px 10px; color:#7f8970; background:transparent; font-size:12px; cursor:pointer; white-space:nowrap; }
+.home-score-layout .home-practice-display-modes button[aria-pressed="true"] { color:#445b33; background:#fffef8; box-shadow:0 1px 4px #45572b16; }
+.home-score-layout .home-practice-display-modes button:hover { color:#445b33; }
+.home-practice-tab { min-width:0; margin:0 0 8px; overflow:hidden; border:1px solid #d8ddca; border-radius:12px; background:#fffef7e8; }
+.home-practice-tab>header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:30px; padding:0 10px; }
+.home-practice-tab>header>strong { display:flex; align-items:baseline; flex-wrap:wrap; gap:7px; color:#596d43; font-size:12px; font-weight:550; }
+.home-practice-tab>header small { color:#889379; font-size:10px; font-weight:400; }
+.home-practice-tab>header>span { flex-shrink:0; color:#74865d; font-size:10px; }
+.home-tab-viewport { position:relative; height:100px; overflow:hidden; cursor:grab; touch-action:pan-y pinch-zoom; user-select:none; -webkit-user-select:none; }
+.home-tab-viewport:focus-visible { outline-offset:-3px; border-radius:0 0 10px 10px; }
+.home-tab-viewport.is-dragging,.home-tab-viewport.is-dragging button { cursor:grabbing; }
+.home-tab-staff { position:absolute; inset:0; pointer-events:none; }
+.home-tab-staff line { stroke:#a3ad92; stroke-width:.65; }
+.home-tab-staff text { fill:#879575; font:9px ui-monospace,monospace; }
+.home-tab-staff .home-tab-step-label { fill:#9ba68b; font-size:8px; }
+.home-score-layout .home-tab-note { position:absolute; translate:-50% -50%; display:grid; place-items:center; width:24px; height:20px; min-width:0; min-height:0; padding:0; border:0; border-radius:4px; background:#f4f5eb; color:#536641; font:550 12px ui-monospace,monospace; cursor:pointer; }
+.home-score-layout .home-tab-note:hover { background:#e1e8d3; }
+.home-score-layout .home-tab-note.is-active { color:#fffff4; background:#718a4f; box-shadow:0 1px 4px #5063341a; }
+.home-tab-playhead { position:absolute; z-index:2; top:12px; bottom:7px; width:2px; background:#607d40; pointer-events:none; }
+.home-tab-playhead::before { content:""; position:absolute; inset:0 -4px; background:#77935417; }
+.home-tab-playhead>i { position:absolute; top:-2px; left:-3px; width:8px; height:8px; border-radius:2px; background:#607d40; transform:rotate(45deg); }
+.home-tab-warning { margin:0; padding:3px 10px 6px; color:#8c7451; font-size:10px; line-height:1.4; }
+.home-tab-empty { display:flex; align-items:center; justify-content:space-between; gap:8px; height:64px; margin:0 0 8px; padding:8px 10px; border:1px solid #daddcf; border-radius:10px; background:#f7f8ef; }
+.home-tab-empty>div { min-width:0; }
+.home-tab-empty strong,.home-tab-empty span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.home-tab-empty strong { color:#6b7959; font-size:11px; font-weight:500; line-height:1.6; }
+.home-tab-empty span { color:#939c85; font-size:10px; line-height:1.6; }
+.home-score-layout .home-tab-empty>.quiet-button { flex-shrink:0; min-height:44px; padding:8px; color:#61784c; font-size:11px; }
+.home-score-layout .practice-chords { min-width:0; gap:6px; overflow-x:auto; padding:1px 1px 8px; overscroll-behavior-x:contain; scrollbar-width:thin; }
+.home-score-layout .practice-chords button:has(.home-chord-label) { display:flex; flex-direction:column; justify-content:space-between; align-items:center; flex:1 0 84px; min-width:80px; height:96px; gap:2px; padding:6px 4px 4px; border-radius:12px; }
+.home-score-layout .practice-chords button:has(.home-chord-label) .chord-thumbnail { display:block; width:68px; height:66px; max-width:100%; margin:0; grid-column:auto; grid-row:auto; }
+.home-score-layout .practice-chords button>.home-chord-label { display:flex; align-items:baseline; justify-content:center; order:-1; gap:4px; width:100%; min-width:0; margin:0; padding:0; font-size:12px; white-space:nowrap; }
+.home-score-layout .home-chord-label>span { min-width:0; overflow:hidden; text-overflow:ellipsis; font-size:12px; line-height:1.3; font-weight:500; letter-spacing:-.2px; }
+.home-score-layout .home-chord-label>small { flex-shrink:0; margin:0; color:#949a82; font-size:10px; line-height:1.3; font-family:ui-serif,Georgia,serif; }
+.home-score-layout .practice-chords button.active .home-chord-label>span { color:#435b31; }
+.home-score-layout .practice-chords .thumb-position { font-size:10px; }
+.home-chords-empty { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; margin:0 0 8px; padding:6px 10px; border:1px solid #daddcf; border-radius:10px; background:#f7f8ef; color:#849075; font-size:12px; }
+.home-score-layout .home-chords-empty button { flex-shrink:0; min-height:44px; font-size:12px; }
+@media(max-width:600px) {
+  .home-score-layout .home-practice-display-modes button { padding-inline:6px; font-size:11px; }
+  .home-score-layout .practice-dock { padding-top:5px; }
+  .home-score-layout .home-practice-tab>header { padding-inline:9px; gap:6px; }
+}
+@media(max-width:360px) {
+  .home-score-layout .home-practice-display-modes button { font-size:10px; }
+  .home-practice-tab>header>strong { gap:5px; }
+  .home-practice-tab>header small { font-size:9px; }
+  .home-practice-tab>header>span { font-size:9px; }
+}
+@media(orientation:landscape) and (max-height:500px) and (max-width:1000px) {
+  .home-score-layout .home-practice-display-modes,.home-score-layout .home-practice-tab,
+  .home-score-layout .home-tab-empty,.home-score-layout .home-chords-empty { grid-column:1 / -1; }
+}

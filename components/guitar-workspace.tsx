@@ -22,7 +22,9 @@ import type { Transcription } from "@/lib/transcription";
 import type { KeyName } from "@/lib/harmony";
 import { KEYS, chordDegree, detectKey, presetKeys } from "@/lib/harmony";
 import { HarmonyScales } from "./harmony-scales";
-import { practicePerformance, soundingMidi, midiName, notePositions, type PracticePerformance } from "@/lib/practice-performance";
+import { practicePerformance, soundingMidi, midiName, notePositions, practiceRange, stepAtTime, type PracticePerformance } from "@/lib/practice-performance";
+import { buildPerformanceHomeScore, homeScoreNotesAtTime, homeScoreTime } from "@/lib/home-practice-score";
+import { HomePracticeScoreView } from "./home-practice-score";
 import { usePracticePerformance } from "./use-practice-performance";
 import { usePracticeRecording } from "./use-practice-recording";
 import { prepareAudioPlayback, resumeAudioPlayback } from "@/lib/audio-playback";
@@ -373,6 +375,9 @@ export function GuitarWorkspace() {
   const chordStripRef = useRef<HTMLDivElement>(null);
   const activeChordRef = useRef<HTMLButtonElement>(null);
   const playbackPositionRef = useRef({ progression: defaultProgression, index: 0, fraction: 0 });
+  const [homeDisplay, setHomeDisplay] = useState<"all" | "tab" | "chords">("all");
+  const [scoreScrubbing, setScoreScrubbing] = useState(false);
+  const scoreScrubIntent = useRef<{ data: PracticePerformance; playing: boolean; mode: string } | null>(null);
   const [isFocused, setIsFocused] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>("audio");
@@ -435,6 +440,14 @@ export function GuitarWorkspace() {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
   const performanceData = importedPerformance?.progression === progressionText ? importedPerformance.data : null;
+  const homeScore = useMemo(() => performanceData ? buildPerformanceHomeScore(performanceData, fretRange) : null, [performanceData, fretRange]);
+  useEffect(() => {
+    try { const saved = localStorage.getItem("fretflow:home-practice-display"); if (saved === "all" || saved === "tab" || saved === "chords") setHomeDisplay(saved); } catch { /* Session preference remains available. */ }
+  }, []);
+  useEffect(() => {
+    if (scoreScrubIntent.current) setIsPlaying(false);
+    scoreScrubIntent.current = null; setScoreScrubbing(false);
+  }, [performanceData, performanceMode]);
   const notePractice = performanceData?.timelineKind === "notes";
   const progression = useMemo(() => parseProgression(progressionText), [progressionText]);
   const effectiveKey = useMemo<KeyName>(() => {
@@ -473,22 +486,74 @@ export function GuitarWorkspace() {
   const followsOriginal = Boolean(performanceData?.originalUrl && performanceMode === "original");
   const followsNotes = Boolean(performanceData?.notes.length && performanceMode === "notes");
   const followsPerformance = followsOriginal || followsNotes;
+  const transportPlaying = isPlaying && !scoreScrubbing;
   const showsNotePositions = followsNotes || notePractice;
   const noteAudio = usePracticePerformance(performanceData, {
-    playing: isPlaying, enabled: followsNotes, audible: soundEnabled, bpm,
+    playing: transportPlaying, enabled: followsNotes, audible: soundEnabled, bpm,
     loop: loopMode, loopStart, onStep: setActiveIndex,
     onNotes: midis => setPlayingMidis(previous => previous.join() === midis.join() ? previous : midis),
     onError: () => setIsPlaying(false)
   });
   const originalAudio = usePracticeRecording(performanceData, {
-    playing: isPlaying, enabled: followsOriginal, audible: soundEnabled, bpm,
+    playing: transportPlaying, enabled: followsOriginal, audible: soundEnabled, bpm,
     loop: loopMode, loopStart, onStep: setActiveIndex,
     onNotes: midis => setPlayingMidis(previous => previous.join() === midis.join() ? previous : midis),
     onError: () => setIsPlaying(false)
   });
   const performanceAudio = followsOriginal ? originalAudio : noteAudio;
   const playbackLabel = followsOriginal ? "Original recording" : followsNotes ? "Synthesized guitar" : activeTone.name;
-  const playedPositions = useMemo(() => notePositions(playingMidis, performanceData?.tuning, fretRange, performanceData?.capo), [playingMidis, performanceData?.tuning, performanceData?.capo, fretRange]);
+  const scoreClockRef = useRef(performanceAudio.getTime); scoreClockRef.current = performanceAudio.getTime;
+  const [activeScoreNotes, setActiveScoreNotes] = useState<ReturnType<typeof homeScoreNotesAtTime>>([]);
+  useEffect(() => {
+    if (!homeScore || !followsPerformance) { setActiveScoreNotes([]); return; }
+    let frame = 0;
+    const read = () => {
+      const notes = homeScoreNotesAtTime(homeScore, scoreClockRef.current());
+      setActiveScoreNotes(previous => previous.length === notes.length && previous.every((note, index) => note === notes[index]) ? previous : notes);
+      frame = requestAnimationFrame(read);
+    };
+    read();
+    return () => cancelAnimationFrame(frame);
+  }, [homeScore, followsPerformance]);
+  const playedPositions = homeScore && followsPerformance
+    ? [...new Map(activeScoreNotes.map(note => [`${note.string}:${note.fret}`, { midi: note.midi, string: note.string, fret: note.fret, interval: midiName(note.midi), finger: 0 }])).values()]
+    : notePositions(playingMidis, performanceData?.tuning, fretRange, performanceData?.capo);
+
+  function readHomeScoreTime() {
+    return followsPerformance ? performanceAudio.getTime() : 0;
+  }
+
+  function seekHomeScore(requested: number) {
+    if (!performanceData || !homeScore || !followsPerformance) return;
+    const range = practiceRange(performanceData, loopMode, loopStart);
+    const end = Math.max(range.start, range.end - Math.min(.001, (range.end - range.start) / 2));
+    const time = Math.max(range.start, Math.min(end, homeScoreTime(homeScore, requested)));
+    performanceAudio.seekTime(time);
+    const soundingStep = stepAtTime(performanceData, time);
+    const index = soundingStep >= 0 ? soundingStep : Math.max(0, performanceData.steps.findLastIndex(step => step.start <= time));
+    setPlayingMidis(soundingMidi(performanceData, time)); setActiveIndex(index);
+    setActiveScoreNotes(homeScoreNotesAtTime(homeScore, time));
+  }
+
+  function startHomeScrub() {
+    if (!performanceData || scoreScrubIntent.current) return;
+    scoreScrubIntent.current = { data: performanceData, playing: isPlaying, mode: performanceMode };
+    noteAudio.pauseNow(); originalAudio.pauseNow(); stopChordSound(); setScoreScrubbing(true);
+  }
+
+  function endHomeScrub(cancel: boolean) {
+    const intent = scoreScrubIntent.current;
+    if (!intent) return;
+    scoreScrubIntent.current = null;
+    if (cancel || document.hidden || intent.data !== performanceData || intent.mode !== performanceMode) setIsPlaying(false);
+    else if (intent.playing && isPlaying && followsPerformance && !performanceAudio.playFromGesture()) setIsPlaying(false);
+    setScoreScrubbing(false);
+  }
+
+  function chooseHomeDisplay(mode: "all" | "tab" | "chords") {
+    endHomeScrub(false); setHomeDisplay(mode);
+    try { localStorage.setItem("fretflow:home-practice-display", mode); } catch { /* Keep the in-session choice. */ }
+  }
   const workspaceStyle = {
     "--amber-note": activePalette.root,
     "--green-note": activePalette.third,
@@ -625,7 +690,7 @@ export function GuitarWorkspace() {
       position.index = activeIndex;
       position.fraction = 0;
     }
-    if (followsPerformance || !isPlaying || loopMode === "hold" || progression.length < 2) return;
+    if (followsPerformance || !transportPlaying || loopMode === "hold" || progression.length < 2) return;
 
     const startedAt = performance.now();
     const startFraction = position.fraction;
@@ -644,7 +709,7 @@ export function GuitarWorkspace() {
       // Keep our place within the chord when pausing or changing tempo.
       if (!completed) position.fraction = Math.min(1, startFraction + (performance.now() - startedAt) / chordDurationMs);
     };
-  }, [activeIndex, chordDurationMs, followsPerformance, isPlaying, loopEnd, loopMode, loopStart, progression.length, progressionText]);
+  }, [activeIndex, chordDurationMs, followsPerformance, transportPlaying, loopEnd, loopMode, loopStart, progression.length, progressionText]);
 
   useEffect(() => {
     const strip = chordStripRef.current;
@@ -672,7 +737,7 @@ export function GuitarWorkspace() {
     });
     observer.observe(strip);
     return () => observer.disconnect();
-  }, [activeIndex, isPlaying, progressionText, performanceData]);
+  }, [activeIndex, isPlaying, progressionText, performanceData, homeDisplay]);
 
   useEffect(() => {
     setActiveIndex((current) => Math.max(0, Math.min(current, stepCount - 1)));
@@ -681,12 +746,12 @@ export function GuitarWorkspace() {
 
   useEffect(() => {
     const playback = new AbortController();
-    if (isPlaying && !followsPerformance && soundEnabled) void playChordSound(activeChord, activeTone, false, activeIndex, playback.signal);
+    if (transportPlaying && !followsPerformance && soundEnabled) void playChordSound(activeChord, activeTone, false, activeIndex, playback.signal);
     return () => playback.abort();
-  }, [activeChord, activeIndex, followsPerformance, isPlaying, soundEnabled]);
+  }, [activeChord, activeIndex, followsPerformance, transportPlaying, soundEnabled]);
 
   useEffect(() => {
-    const pauseWhenHidden = () => { if (document.hidden) setIsPlaying(false); };
+    const pauseWhenHidden = () => { if (document.hidden) { scoreScrubIntent.current = null; setScoreScrubbing(false); setIsPlaying(false); } };
     document.addEventListener("visibilitychange", pauseWhenHidden);
     return () => document.removeEventListener("visibilitychange", pauseWhenHidden);
   }, []);
@@ -949,7 +1014,7 @@ export function GuitarWorkspace() {
   }
   if (analysisResult && !notePractice) settingsRows.push({ panel: "chart", icon: "library", label: "Song chart", value: analysisResult.title });
 
-  return <main className={`practice-workspace ${focusMode ? "practice-focus-mode" : ""} ${notePractice ? "solo-practice" : ""}`} style={workspaceStyle}
+  return <main className={`practice-workspace home-score-layout home-display-${homeDisplay} ${focusMode ? "practice-focus-mode" : ""} ${notePractice ? "solo-practice" : ""}`} style={workspaceStyle}
     onClickCapture={() => { if (soundEnabled && !followsPerformance) void unlockAudioContext(); }}>
     <header className="practice-header">
       <a className="practice-brand" href="/" aria-label={t("FretFlow home")}><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>FretFlow<span className="brand-section">{t("Practice")}</span></a>
@@ -959,7 +1024,7 @@ export function GuitarWorkspace() {
       <button className="quiet-button" aria-label={t("Settings")} onClick={() => setPanel("settings")}><WorkspaceIcon name="settings" size={18} /><span>{t("Settings")}</span></button>
     </header>
 
-    <GuitarStage focusMode={focusMode} onFocusModeChange={setFocusMode} preferredRange={fretRange} guitar={activeGuitar} noteMode={showsNotePositions} tuning={performanceData?.tuning} markers={showsNotePositions ? playedPositions : markers} chord={showsNotePositions ? t(notePractice ? "Solo notes" : "Sounding notes") : activeChord} degree={showsNotePositions ? playingMidis.map(midiName).join(" · ") || t("Rest") : activeDegree} focused={isFocused} isPlaying={isPlaying} chordDurationMs={chordDurationMs} onFocus={() => setIsFocused(true)} />
+    <GuitarStage focusMode={focusMode} onFocusModeChange={setFocusMode} preferredRange={fretRange} guitar={activeGuitar} noteMode={showsNotePositions} tuning={performanceData?.tuning} markers={showsNotePositions ? playedPositions : markers} chord={showsNotePositions ? t(notePractice ? "Solo notes" : "Sounding notes") : activeChord} degree={showsNotePositions ? playingMidis.map(midiName).join(" · ") || t("Rest") : activeDegree} focused={isFocused} isPlaying={transportPlaying} chordDurationMs={chordDurationMs} onFocus={() => setIsFocused(true)} />
     {showDiagram && !showsNotePositions ? <div className="practice-diagram"><ChordDiagram chord={activeChord} degree={activeDegree} markers={markers} /></div> : null}
 
     <section className="practice-dock" aria-label={t("Practice controls")}>
@@ -980,14 +1045,22 @@ export function GuitarWorkspace() {
       <div className="practice-fingering-bar"><button className="quiet-button tone-studio-shortcut" onClick={() => setPanel("sound")}><WorkspaceIcon name="sound" size={15} />{t("Tone Studio")}</button>{notePractice ? <><label>{t("Fretboard position")} <select aria-label={t("Fretboard position")} value={`${fretRange.min}:${fretRange.max}`} onChange={event => { const [min, max] = event.target.value.split(":").map(Number); chooseFretRange({ min, max }); }}>{![[0,5],[5,12],[8,17]].some(([min,max]) => min === fretRange.min && max === fretRange.max) && <option value={`${fretRange.min}:${fretRange.max}`}>{t("Frets {min}–{max}", fretRange)}</option>}{[[0,5],[5,12],[8,17]].map(([min,max]) => <option key={min} value={`${min}:${max}`}>{t("Frets {min}–{max}", {min,max})}</option>)}</select></label><small>{t("Suggested positions · frets measured from the nut")}</small></> : <><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("chord-finder"); }}>{t("Find a chord")}</button><button className="quiet-button" onClick={() => { setIsPlaying(false); setPanel("fingering"); }}>{t("Fingering & video")} · {t("Frets {min}–{max}", fretRange)}</button><small>{t(chartSteps?.[activeIndex]?.sourceShape && !(pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex]) ? "Written in source score" : pinnedShapes.progression === progressionText && pinnedShapes.shapes[activeIndex] ? "Your chosen shape" : "Connected suggestions")}</small></>}</div>
       {importedChart?.progression === progressionText && <p className="imported-score-caption">{importedChart.source !== "manual" && <>{t("From your chart")} · </>}{importedChart.title === "Imported chord chart" || importedChart.title === "Your progression" ? t(importedChart.title) : importedChart.title} · {t("Suggested practice voicings")}</p>}
       {notePractice && !stepCount && <p role="status" className="solo-practice-empty">{t("Nothing remains in this practice range. Review the notes or adjust the score offset.")}</p>}
-      <div className="practice-chords" ref={chordStripRef} aria-label={t(notePractice ? "Note sequence" : "Chord progression")}>
+      <div className="home-practice-display-modes" role="group" aria-label={t("Practice display")}>
+        {([["all", "Show all"], ["tab", "TAB only"], ["chords", "Chords only"]] as const).map(([mode, label]) => <button key={mode} type="button" aria-pressed={homeDisplay === mode} onClick={() => chooseHomeDisplay(mode)}>{t(label)}</button>)}
+      </div>
+      {homeDisplay !== "chords" && <HomePracticeScoreView score={followsPerformance ? homeScore : null} getTime={readHomeScoreTime} seek={seekHomeScore}
+        interactionKey={`${performanceMode}:${panel ?? ""}:${transcriptionOpen}`}
+        onUseNotes={!followsPerformance && homeScore?.notes.length ? () => switchPlaybackMode("notes") : undefined}
+        onScrubStart={startHomeScrub} onScrubEnd={endHomeScrub} range={performanceData ? practiceRange(performanceData, loopMode, loopStart) : { start: 0, end: 0 }}
+        onImport={() => { setIsPlaying(false); setPanel(null); setTranscriptionOpen(true); }} />}
+      {homeDisplay !== "tab" && (notePractice ? <div className="home-chords-empty"><span>{t("No chords in this Solo")}</span>{homeDisplay === "chords" && <button type="button" className="quiet-button" onClick={() => chooseHomeDisplay("tab")}>{t("Show TAB")}</button>}</div> : <div className="practice-chords" ref={chordStripRef} aria-label={t("Chord progression")}>
         {practiceLabels.map((label, index) => <button key={`${label}-${index}`} className={`${activeIndex === index ? "active" : ""} ${isInsideLoop(index) ? "in-loop" : "outside-loop"}`}
           ref={activeIndex === index ? activeChordRef : null}
           aria-label={notePractice ? `${label} · ${index + 1}` : `${label} ${degrees[index]}`} aria-pressed={activeIndex === index} onClick={() => selectChord(index)}>
           {!notePractice && <ChordThumbnail chord={label} markers={connectedShapes[index] ?? []} />}
-          <span>{label}</span><small>{notePractice ? `${performanceData.steps[index].start.toFixed(2)}s · ${(performanceData.steps[index].end - performanceData.steps[index].start).toFixed(2)}s` : <>{degrees[index]}{importedChart?.progression === progressionText ? ` · ${t("{count} beats", { count: Number((importedTiming?.beats[index] ?? 4).toFixed(2)) })}` : ""}</>}</small>
+          <div className="home-chord-label"><span>{label}</span><small>{degrees[index]}</small></div>
         </button>)}
-      </div>
+      </div>)}
       <div className="practice-transport">
         <button className="tempo-shortcut" onClick={() => setPanel("loop")} aria-label={t("Adjust tempo, {bpm} BPM", { bpm })}><span className={isPlaying ? "beat-dot playing" : "beat-dot"} style={{ animationDuration: `${60000 / bpm}ms` }} /><strong>{bpm}</strong><span>BPM</span></button>
         <div className="transport-center">
