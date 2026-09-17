@@ -86,6 +86,14 @@ export function HomePracticeScoreView(props: Props) {
   const right = time + (width - anchor) / pixelsPerSecond + .4;
   // Keep the DOM bounded to the visible passage even for a long recording.
   const visible = score.notes.filter(note => note.start >= left && note.start <= right);
+  // Separate guitar tracks may use the same string at one instant. Keep both
+  // frets readable instead of drawing one button directly over the other.
+  const positions = new Map<string, typeof visible>();
+  for (const note of visible) {
+    const key = `${note.start}:${note.string}`;
+    const group = positions.get(key);
+    if (group) group.push(note); else positions.set(key, [note]);
+  }
   const steps = score.steps.filter(step => step.start >= left && step.start <= right);
   return <section className="home-practice-tab" aria-label={t("Scrolling TAB")}>
     <header><strong>{t("TAB")} <small>{t("Suggested positions · Beta")}</small></strong><span>{t(dragging ? "Release to seek" : "Drag to seek")}</span></header>
@@ -125,10 +133,13 @@ export function HomePracticeScoreView(props: Props) {
         {["e", "B", "G", "D", "A", score.tuning === "drop-d" ? "D" : "E"].map((label, index) => <g key={index}><line x1="25" x2="100%" y1={22 + index * 13} y2={22 + index * 13} /><text x="7" y={25 + index * 13}>{label}</text></g>)}
         {steps.map(step => <text className="home-tab-step-label" key={step.index} x={anchor + (step.start - time) * pixelsPerSecond} y="9">{step.index + 1}</text>)}
       </svg>
-      {visible.map(note => <button key={note.id} type="button" className={`home-tab-note${note.start <= time && time < note.end ? " is-active" : ""}`}
-        style={{ left: anchor + (note.start - time) * pixelsPerSecond, top: 22 + (note.string - 1) * 13 }}
-        aria-label={t("{pitch}, string {string}, fret {fret}, {seconds} seconds", { pitch: midiName(note.midi), string: note.string, fret: note.fret, seconds: Number(note.start.toFixed(2)) })}
-        onClick={() => props.seek(note.start)}>{note.fret}</button>)}
+      {[...positions].map(([key, notes]) => {
+        const first = notes[0], label = [...new Set(notes.map(note => note.fret))].join("/");
+        const description = notes.map(note => `${t("Track {track}", { track: note.track ?? 1 })}: ${t("{pitch}, string {string}, fret {fret}, {seconds} seconds", { pitch: midiName(note.midi), string: note.string, fret: note.fret, seconds: Number(note.start.toFixed(2)) })}`).join("; ");
+        return <button key={key} type="button" className={`home-tab-note${notes.some(note => note.start <= time && time < note.end) ? " is-active" : ""}`}
+          style={{ left: anchor + (first.start - time) * pixelsPerSecond, top: 22 + (first.string - 1) * 13, width: Math.max(24, label.length * 7 + 8) }}
+          aria-label={description} title={description} onClick={() => props.seek(first.start)}>{label}</button>;
+      })}
       <div className="home-tab-playhead" style={{ left: anchor }} aria-hidden="true"><i /></div>
     </div>
     {score.unplacedNoteCount > 0 && <p className="home-tab-warning">{t("{count} notes have no available TAB position.", { count: score.unplacedNoteCount })}</p>}

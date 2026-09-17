@@ -109,6 +109,7 @@ export const messages = {
   "No playable TAB positions": "暂无可用的六线谱指位",
   "Use note playback to follow TAB": "切换音符播放，跟随六线谱",
   "Play notes": "播放音符",
+  "Track {track}": "音轨 {track}",
   "A closer view of each note.": "更清楚地查看每个音的位置。",
   "Tone Studio": "音色工作室",
   "Guitar voice": "吉他基础音色",
