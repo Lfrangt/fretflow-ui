@@ -57,7 +57,7 @@ body { overflow: auto; }
 .practice-header > .quiet-button { background: #faf8f1e8; backdrop-filter: blur(12px); }
 .maple-neck { --wood-surface: linear-gradient(180deg, #f1c57f, #dba858 58%, #d09b4c); }
 .maple-neck .neck-inlays b { background: #51422d; box-shadow: none; }
-.maple-neck .neck-inlays b.double { box-shadow: 0 calc(var(--neck-height) * .3) #51422d; }
+.maple-neck .neck-inlays b.double { box-shadow: 0 var(--inlay-gap, calc(var(--neck-height) * .3)) #51422d; }
 .maple-neck .neck-strings small { color: #4a381fb3; }
 .maple-neck .neck-strings > span { background: linear-gradient(180deg,#f1eddb,#6c5c46); }
 .learning-neck { position: absolute; z-index: 1; left: var(--neck-x); top: var(--neck-y); width: var(--neck-width); height: var(--neck-height); }
@@ -82,7 +82,7 @@ body { overflow: auto; }
 .neck-frets i { border-right: 2px solid #c4bba3; box-shadow: inset -1px 0 #f6efdc55, 1px 0 3px #0005; }
 .neck-inlays { position: absolute; inset: 0; z-index: 1; }
 .neck-inlays b { position: absolute; top: 50%; transform: translate(-50%,-50%); width: clamp(9px,1vw,14px); height: clamp(9px,1vw,14px); border-radius: 50%; background: radial-gradient(circle at 30% 25%, #f9f2dc, #b4a684 68%, #75613c); box-shadow: inset 0 1px #fff8, 0 2px 3px #0002; opacity: .85; }
-.neck-inlays b.double { top: 35%; box-shadow: 0 calc(var(--neck-height) * .3) #c5bca1; }
+.neck-inlays b.double { top: 35%; box-shadow: 0 var(--inlay-gap, calc(var(--neck-height) * .3)) #c5bca1; }
 .neck-strings { position: absolute; z-index: 3; inset: 0; }
 .neck-strings > span { position: absolute; left: 0; width: 100%; transform: translateY(-50%); background: linear-gradient(180deg,#f4eedb,#b1a78d); box-shadow: 0 1px 2px #0006; }
 .neck-strings small { position: absolute; left: 8px; top: -13px; color: #e2d9c49c; font-size: 9px; font-weight: 500; }
@@ -509,3 +509,18 @@ body { overflow: auto; }
 .focus-camera .learning-neck .practice-note { width: 36px; height: 36px; font-size: 14px; }
 .focus-camera .neck-ruler { font-size: 13px; }
 .focus-camera .instrument-viewport:focus-visible { outline: 2px solid #788c70; outline-offset: -2px; border-radius: 12px; }
+
+/* Ordinary view follows the photograph's taper over the entire neck. */
+.neck-wood-profile { display: none; }
+.natural-neck .neck-surface { background: none; overflow: visible; border-radius: 0; box-shadow: none; }
+.natural-neck .neck-wood-profile { display: block; position: absolute; inset: 0; background: var(--wood-surface); clip-path: var(--neck-outline); }
+.natural-neck .neck-surface::after { clip-path: var(--neck-outline); }
+.natural-neck .neck-frets { clip-path: var(--grid-outline); }
+.natural-neck .neck-nut { top: var(--nut-top); height: var(--nut-height); }
+.neck-strings svg { width: 100%; height: 100%; overflow: visible; }
+.neck-strings line { stroke: #c4bba3; vector-effect: non-scaling-stroke; }
+.neck-strings > small { position: absolute; left: 8px; margin-top: -13px; color: #e2d9c49c; font-size: 9px; font-weight: 500; }
+.maple-neck .neck-strings > small { color: #4a381fb3; }
+
+
+.natural-neck .learning-neck .practice-note { width: var(--neck-note-size); height: var(--neck-note-size); font-size: var(--neck-note-font); }

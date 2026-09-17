@@ -5,7 +5,7 @@ import { useLanguage } from "./language-provider";
 import { animate, motion } from "motion/react";
 import { useId, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { DreamGuitar } from "@/lib/dream-guitars";
-import { fretCell, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } from "@/lib/guitar-layout";
+import { fretCell, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, neckProfile, neckStringY, neckOutline, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } from "@/lib/guitar-layout";
 import { WorkspaceIcon } from "./workspace-icon";
 import { FingerMarkers } from "./finger-markers";
 
@@ -34,6 +34,15 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
   const scrollAnimationRef = useRef<{ stop: () => void } | null>(null);
   const focusButtonRef = useRef<HTMLButtonElement>(null);
   const [space, setSpace] = useState({ width: 0, height: 0 });
+  const [profileProgress, setProfileProgress] = useState(focusMode ? 1 : 0);
+  const profileProgressRef = useRef(profileProgress);
+  useEffect(() => {
+    const controls = animate(profileProgressRef.current, focusMode ? 1 : 0, {
+      duration: reduceMotion ? 0 : 1.2, ease: focusEase,
+      onUpdate: value => { profileProgressRef.current = value; setProfileProgress(value); }
+    });
+    return () => controls.stop();
+  }, [focusMode, reduceMotion]);
   const [phoneLandscape, setPhoneLandscape] = useState(false);
   useEffect(() => {
     const query = window.matchMedia("(orientation: landscape) and (max-height: 500px) and (max-width: 1000px)");
@@ -86,6 +95,12 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
   const layout = desktopFocus ? focusLayout : mobileFocus ? mobileFocusLayout(guitar, space.width, space.height - (phoneLandscape ? 44 : 94), visibleFrets) : guitarLayout(guitar, practiceView, compact, focusMode);
   const headstock = headstockLayout(guitar, layout.neckHeight);
   const showNeck = practiceView || focusMode;
+  const naturalNeck = Boolean(guitar.photoStrings) && (practiceView || desktopFocus);
+  const profile = neckProfile(guitar, naturalNeck, naturalNeck ? profileProgress : 1);
+  const gridStart = 14 / layout.neckWidth;
+  const ordinaryProfile = neckProfile(guitar, true);
+  const ordinaryNoteSize = Math.min(30, (ordinaryProfile.nut[1] - ordinaryProfile.nut[0]) * 180 / 5 - 2);
+  const neckLaneY = (string: number, x: number) => neckStringY(profile, string, gridStart + (1 - gridStart) * x) * 100;
   const scale = mobileFocus || desktopFocus ? 1 : Math.max(0, Math.min((space.width - 16) / layout.width, (space.height - (showNeck ? 20 : 64)) / layout.height, 1.15));
   const glideDuration = reduceMotion || noteMode ? 0 : isPlaying ? Math.min(.62, chordDurationMs / 1000 * .38) : .58;
   const scrollDuration = reduceMotion ? 0 : noteMode ? .22 : glideDuration;
@@ -140,6 +155,13 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
     return () => { cancelAnimationFrame(frame); scrollAnimationRef.current?.stop(); };
   }, [mobileFocus, markerFrets, visibleFrets, space.width, layout.width, layout.neckX, layout.neckWidth, scrollDuration]);
   const focusTransition = { duration: reduceMotion ? 0 : 1.2, ease: focusEase };
+  const profileStyle = {
+    "--neck-outline": neckOutline(profile), "--grid-outline": neckOutline(profile, gridStart),
+    "--nut-top": `${(profile.nut[0] - (profile.nut[1] - profile.nut[0]) / 8) * 100}%`,
+    "--nut-height": `${(profile.nut[1] - profile.nut[0]) * 125}%`,
+    "--neck-note-size": `${ordinaryNoteSize + (36 - ordinaryNoteSize) * profileProgress}px`,
+    "--neck-note-font": `${10 + 4 * profileProgress}px`
+  } as React.CSSProperties;
   const sceneTarget = {
     width: layout.width, height: layout.height, scale,
     x: desktopFocus ? focusLayout.cameraX : mobileFocus ? 0 : (space.width - layout.width * scale) / 2,
@@ -152,7 +174,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
   const dissolveMask = focusMode
     ? "linear-gradient(90deg, #000 15%, transparent 65%)"
     : "linear-gradient(90deg, #000 105%, transparent 155%)";
-  return <section ref={stageRef} className={`practice-stage ${mobileFocus ? "mobile-focus" : ""} ${desktopFocus ? "focus-camera" : ""} ${noteMode ? "sounding-note-view" : ""} ${showNeck ? "focused" : "whole-guitar"} ${focusMode ? "focus-mode" : ""} ${layout.joined ? "joined-guitar" : "separate-guitar"} ${compact ? "compact-guitar" : ""} ${isPlaying ? "playing" : ""} ${guitar.maple ? "maple-neck" : ""} ${guitar.legacy ? "legacy-photo" : ""}`} aria-label={t("Interactive guitar stage")}>
+  return <section ref={stageRef} className={`practice-stage ${mobileFocus ? "mobile-focus" : ""} ${desktopFocus ? "focus-camera" : ""} ${noteMode ? "sounding-note-view" : ""} ${showNeck ? "focused" : "whole-guitar"} ${focusMode ? "focus-mode" : ""} ${layout.joined ? "joined-guitar" : "separate-guitar"} ${naturalNeck ? "natural-neck" : ""} ${compact ? "compact-guitar" : ""} ${isPlaying ? "playing" : ""} ${guitar.maple ? "maple-neck" : ""} ${guitar.legacy ? "legacy-photo" : ""}`} aria-label={t("Interactive guitar stage")}>
     <button ref={focusButtonRef} className="stage-focus-toggle" aria-pressed={focusMode} aria-label={t(focusMode ? "Exit focus mode" : "Enter focus mode")} onClick={() => onFocusModeChange(!focusMode)}>
       <WorkspaceIcon name={focusMode ? "collapse" : "focus"} size={16} /><span>{t(focusMode ? "Exit focus" : "Focus mode")}</span>{focusMode ? <kbd>Esc</kbd> : null}
     </button>
@@ -164,7 +186,7 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
         event.preventDefault();
         panFocus(event.key === "Home" ? -lastFret : event.key === "End" ? lastFret : event.key === "ArrowLeft" ? -1 : 1);
       }}>
-    {space.width > 0 ? <motion.div className="instrument-composition" initial={false} animate={sceneTarget} transition={mobileFocus ? { duration: reduceMotion ? 0 : .2, ease: focusEase, width: { duration: 0 }, x: { duration: 0 }, scale: { duration: 0 } } : desktopFocus && focusMotion.settled ? { duration: scrollDuration, ease: glideEase } : focusTransition}
+    {space.width > 0 ? <motion.div className="instrument-composition" initial={false} style={profileStyle} animate={sceneTarget} transition={mobileFocus ? { duration: reduceMotion ? 0 : .2, ease: focusEase, width: { duration: 0 }, x: { duration: 0 }, scale: { duration: 0 } } : desktopFocus && focusMotion.settled ? { duration: scrollDuration, ease: glideEase } : focusTransition}
       onAnimationComplete={() => setFocusMotion(previous => previous.settled ? previous : { ...previous, settled: true })}>
       <div className="instrument-photo-frame" aria-hidden={focusMode}>
         <motion.div className="instrument-photo-material" initial={false}
@@ -188,21 +210,27 @@ export function GuitarStage({ markers, chord, degree, focused, focusMode, onFocu
         <svg width="0" height="0" aria-hidden="true" className="neck-clip-defs"><defs>
           <clipPath id={contourId} clipPathUnits="objectBoundingBox"><path d="M0,0 C.45,0 .7,.07 1,.07 L1,.93 C.7,.93 .45,1 0,1Z" /></clipPath>
         </defs></svg>
-        <motion.div className="neck-joint" initial={false} animate={{ opacity: focusMode ? 0 : 1 }} transition={focusTransition} style={{ clipPath: `url(#${contourId})` }} aria-hidden="true">
+        <motion.div className="neck-joint" initial={false} animate={{ opacity: focusMode ? 0 : 1 }} transition={focusTransition} style={{ clipPath: naturalNeck ? `polygon(0 ${neckStringY(profile, .375, 1) * 100}%, 100% ${neckStringY(profile, .375, 1) * 100}%, 100% ${neckStringY(profile, 6.625, 1) * 100}%, 0 ${neckStringY(profile, 6.625, 1) * 100}%)` : `url(#${contourId})` }} aria-hidden="true">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none">{strings.map((_, i) => {
-            const start = 10 + i * 16;
+            const start = neckLaneY(i + 1, 1);
             return <path key={i} d={`M0 ${start} H100`} />;
           })}</svg>
         </motion.div>
         <div className="neck-surface" role="img" aria-label={t("{chord} fretboard: {positions}", { chord, positions: markers.map(m => t("String {string}, fret {fret}, {interval}", m)).join("; ") })}>
+          <div className="neck-wood-profile" aria-hidden="true" />
           {firstFret === 1 && <div className="neck-nut" />}
           <div className="neck-grid">
             <div className="neck-frets" style={{ gridTemplateColumns: fretColumns }} aria-hidden="true">{Array.from({ length: visibleFrets }, (_, i) => <i key={i} data-fret={i + firstFret} />)}</div>
-            <div className="neck-inlays" aria-hidden="true">{[3, 5, 7, 9, 12, 15, 17, 19, 21].filter(fret => fret >= firstFret && fret < firstFret + visibleFrets).map(fret => <b className={fret === 12 ? "double" : ""} key={fret} data-fret={fret} style={{ left: `${fretCell(fret, lastFret).center * 100}%` }} />)}</div>
-            <div className="neck-strings" aria-hidden="true">{(tuning === "drop-d" && noteMode ? [...strings.slice(0, -1), "D"] : strings).map((name, i) => <span key={i} data-string={i + 1} style={{ top: `${stringY(i + 1)}%`, height: `${1.2 + i * .32}px` }}><small>{name}</small></span>)}</div>
+            <div className="neck-inlays" aria-hidden="true">{[3, 5, 7, 9, 12, 15, 17, 19, 21].filter(fret => fret >= firstFret && fret < firstFret + visibleFrets).map(fret => <b className={fret === 12 ? "double" : ""} key={fret} data-fret={fret} style={{ left: `${fretCell(fret, lastFret).center * 100}%`, top: `${neckLaneY(fret === 12 ? 2.5625 : 3.5, fretCell(fret, lastFret).center)}%`, "--inlay-gap": `${(neckLaneY(6, fretCell(fret, lastFret).center) - neckLaneY(1, fretCell(fret, lastFret).center)) * .00375 * layout.neckHeight}px` } as React.CSSProperties} />)}</div>
+            <div className="neck-strings" aria-hidden="true">{naturalNeck ? <>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none">{strings.map((_, i) => <line key={i} data-string={i + 1}
+                x1="0" y1={neckLaneY(i + 1, 0)} x2="100" y2={neckLaneY(i + 1, 1)} style={{ strokeWidth: 1.2 + i * .32 }} />)}</svg>
+              {(tuning === "drop-d" && noteMode ? [...strings.slice(0, -1), "D"] : strings).map((name, i) => <small key={i}
+                style={{ top: `${neckLaneY(i + 1, 8 / Math.max(1, layout.neckWidth - 14))}%` }}>{name}</small>)}
+            </> : (tuning === "drop-d" && noteMode ? [...strings.slice(0, -1), "D"] : strings).map((name, i) => <span key={i} data-string={i + 1} style={{ top: `${stringY(i + 1)}%`, height: `${1.2 + i * .32}px` }}><small>{name}</small></span>)}</div>
             {noteMode ? markers.filter(marker => marker.fret > 0).map(marker => <span key={`midi-${marker.midi}`} data-midi={marker.midi} data-string={marker.string} data-fret={marker.fret} className={`practice-note ${colorClass(marker.interval)}`}
-              style={{ top: `${stringY(marker.string)}%`, left: `${markerX(marker.fret) * 100}%` }} aria-hidden="true">{marker.interval}</span>) : <FingerMarkers markers={markers.filter(marker => !desktopFocus || marker.fret > 0)}
-                position={marker => ({ x: markerX(marker.fret), y: stringY(marker.string) / 100 })} duration={glideDuration} immediate={Boolean(reduceMotion)} />}
+              style={{ top: `${neckLaneY(marker.string, markerX(marker.fret))}%`, left: `${markerX(marker.fret) * 100}%` }} aria-hidden="true">{marker.interval}</span>) : <FingerMarkers markers={markers.filter(marker => !desktopFocus || marker.fret > 0)}
+                position={marker => ({ x: markerX(marker.fret), y: neckLaneY(marker.string, markerX(marker.fret)) / 100 })} duration={glideDuration} immediate={Boolean(reduceMotion)} />}
           </div>
         </div>
         <div className="neck-caption"><strong>{chord}</strong><span>{degree}</span><i /><span>{noteMode ? t("Suggested note positions") : isPlaying ? t("Following the progression") : t("Find the shape. Hear the movement.")}</span></div>

@@ -17,7 +17,7 @@ function load(name) {
 }
 
 const { dreamGuitars } = load('dream-guitars');
-const { fretCell, fretDistance, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
+const { fretCell, fretDistance, photoMarkerPosition, fretboardWindow, focusGuitarLayout, fretboardScrollTarget, guitarLayout, headstockLayout, neckProfile, neckStringY, mobileFocusLayout, PRACTICE_FRET_COUNT, rightHandedStringPosition } = load('guitar-layout');
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
 test('photo C shape lands on measured strings instead of above the photographed neck', () => {
@@ -174,17 +174,30 @@ test('Focus changes only camera position, never fret length or neck proportions'
   }
 });
 
-test('ordinary joined guitar includes the selected headstock with all string lanes aligned', () => {
+test('ordinary headstocks share the body photo scale and connect all six nut lanes', () => {
   for (const guitar of dreamGuitars) {
     const layout = guitarLayout(guitar, true, false);
     const head = headstockLayout(guitar, layout.neckHeight);
     close(layout.neckX - head.width, 32);
     close(head.width / head.photoWidth, guitar.nutX);
+    close(head.photoWidth, layout.photoWidth);
     const top = guitar.photoStrings?.nut[0] ?? guitar.centerY - .4 / guitar.photoScale;
     const bottom = guitar.photoStrings?.nut[1] ?? guitar.centerY + .4 / guitar.photoScale;
-    close(head.photoY + top * head.photoWidth, layout.neckHeight * .1);
-    close(head.photoY + bottom * head.photoWidth, layout.neckHeight * .9);
+    const profile = neckProfile(guitar, true);
+    for (let lane = 0; lane < 6; lane++) {
+      const photographedString = head.photoY + (top + (bottom - top) * lane / 5) * head.photoWidth;
+      close(photographedString, neckStringY(profile, lane + 1, 0) * layout.neckHeight);
+    }
   }
+  // The measured Relic nut is 94px wide in the 2700px source, while the
+  // body is displayed at 2754px. Matching it must not enlarge the photograph
+  // to 4136px just to fill the teaching board's 144px string span.
+  const head = headstockLayout(dreamGuitars[0], 180);
+  close(head.photoWidth, 2754);
+  close(head.width, 537.03);
+  const profile = neckProfile(dreamGuitars[0], true);
+  close((profile.nut[1] - profile.nut[0]) * 180, 95.88);
+  assert.equal(head.transitionWidth, undefined, 'No artificial flared section between the photographed nut and the first fret');
 });
 
 test('open strings do not pull a high position back to the nut', () => {
@@ -195,4 +208,24 @@ test('open strings do not pull a high position back to the nut', () => {
   const openX = layout.cameraX + layout.neckX + layout.openX;
   assert.ok(openX >= 18 && openX <= 56, 'open badge remains beside the visible position');
   assert.equal(fretboardWindow([0], window).first, 1);
+});
+
+test('ordinary taper reaches the body photo and all lanes share the Focus interpolation', () => {
+  const guitar = dreamGuitars[0];
+  const layout = guitarLayout(guitar, true, false);
+  const ordinary = neckProfile(guitar, true);
+  const middle = neckProfile(guitar, true, .5);
+  const focus = neckProfile(guitar, true, 1);
+  for (let string = 1; string <= 6; string++) {
+    for (const x of [0, .08, .5, 1]) {
+      close(neckStringY(middle, string, x), (neckStringY(ordinary, string, x) + neckStringY(focus, string, x)) / 2);
+      close(neckStringY(focus, string, x), .1 + (string - 1) * .16);
+    }
+    const lane = (string - 1) / 5;
+    const distance = (guitar.joinX - guitar.nutX) / guitar.scaleLength;
+    const axes = guitar.photoStrings;
+    const top = axes.nut[0] + (axes.bridge[0] - axes.nut[0]) * distance;
+    const bottom = axes.nut[1] + (axes.bridge[1] - axes.nut[1]) * distance;
+    close(layout.neckY + layout.neckHeight * neckStringY(ordinary, string, 1), layout.photoY + layout.photoWidth * (top + (bottom - top) * lane));
+  }
 });

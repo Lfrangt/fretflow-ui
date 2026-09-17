@@ -70,13 +70,40 @@ export function focusGuitarLayout(guitar: DreamGuitar, width: number, height: nu
 }
 
 /** The selected photograph's own headstock, cropped at its calibrated nut.
- * Match its six string lanes to the teaching neck without deforming the photo.
+ * Keep the body photograph's scale and string centre; never fit it to the
+ * rectangular Focus grid's wider nut.
  */
 export function headstockLayout(guitar: DreamGuitar, neckHeight: number) {
-  const top = guitar.photoStrings?.nut[0] ?? guitar.centerY - .4 / guitar.photoScale;
-  const bottom = guitar.photoStrings?.nut[1] ?? guitar.centerY + .4 / guitar.photoScale;
-  const photoWidth = neckHeight * .8 / (bottom - top);
-  return { width: photoWidth * guitar.nutX, photoWidth, photoY: neckHeight * .1 - photoWidth * top };
+  const photoWidth = neckHeight * guitar.photoScale;
+  return { width: photoWidth * guitar.nutX, photoWidth,
+    photoY: neckHeight / 2 - photoWidth * guitar.centerY };
+}
+
+/** Normalised string axes along the whole ordinary neck, measured from the
+ * same photo as its headstock and body. Focus keeps the rectangular grid. */
+export function neckProfile(guitar: DreamGuitar, natural: boolean, focusProgress = 0) {
+  if (!natural || !guitar.photoStrings) return { nut: [.1, .9], end: [.1, .9] };
+  const distance = (guitar.joinX - guitar.nutX) / guitar.scaleLength;
+  const project = (y: number, i: number) => {
+    const ordinary = .5 + (y - guitar.centerY) * guitar.photoScale;
+    return ordinary + ([.1, .9][i] - ordinary) * focusProgress;
+  };
+  return { nut: guitar.photoStrings.nut.map(project),
+    end: guitar.photoStrings.nut.map((y, i) => project(y + (guitar.photoStrings!.bridge[i] - y) * distance, i)) };
+}
+
+export function neckStringY(profile: ReturnType<typeof neckProfile>, string: number, x: number) {
+  const top = profile.nut[0] + (profile.end[0] - profile.nut[0]) * x;
+  const bottom = profile.nut[1] + (profile.end[1] - profile.nut[1]) * x;
+  return top + (bottom - top) * rightHandedStringPosition(string);
+}
+
+export function neckOutline(profile: ReturnType<typeof neckProfile>, start = 0) {
+  const edge = (x: number, bottom: boolean) => {
+    const top = neckStringY(profile, 1, x), low = neckStringY(profile, 6, x);
+    return (bottom ? low + (low - top) / 8 : top - (low - top) / 8) * 100;
+  };
+  return `polygon(0 ${edge(start, false)}%, 100% ${edge(1, false)}%, 100% ${edge(1, true)}%, 0 ${edge(start, true)}%)`;
 }
 
 /** Leave neighbouring frets around the shape and hold still inside that safe area. */
@@ -139,7 +166,8 @@ export function guitarLayout(guitar: DreamGuitar, focused: boolean, compact: boo
   }
   const neckWidth = 1580;
   const neckHeight = 180;
-  const neckX = 32 + headstockLayout(guitar, neckHeight).width;
+  const headstock = headstockLayout(guitar, neckHeight);
+  const neckX = 32 + headstock.width;
   const jointWidth = 22;
   const photoWidth = neckHeight * guitar.photoScale;
   const photoX = neckX + neckWidth + jointWidth - photoWidth * guitar.joinX;
